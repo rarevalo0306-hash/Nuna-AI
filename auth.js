@@ -391,9 +391,10 @@ async function flushSync() {
 }
 // Projects, assignments and deleted ids saved by another device are merged in, never overwritten.
 function mergeState(cloud) {
+  const projectDeleted=new Set([...(cloud?.hidden||[]),...hiddenChats].filter(id=>typeof id==='string'&&id.startsWith('project:')).map(id=>id.slice(8)));
   const cloudProjects = Array.isArray(cloud?.projects) ? cloud.projects.filter(p => p && typeof p.id === 'string') : []
   return {
-    projects: [...projects.map(p=>{const q=cloudProjects.find(q=>q.id===p.id);return {...p,sections:[...(p.sections||[]),...(q?.sections||[]).filter(s=>!(p.sections||[]).some(t=>t.id===s.id))]};}), ...cloudProjects.filter(p => !projects.some(q => q.id === p.id))],
+    projects: [...projects.map(p=>{const q=cloudProjects.find(q=>q.id===p.id);return {...p,sections:[...(p.sections||[]),...(q?.sections||[]).filter(s=>!(p.sections||[]).some(t=>t.id===s.id))]};}), ...cloudProjects.filter(p => !projects.some(q => q.id === p.id))].filter(p=>!projectDeleted.has(p.id)),
     assignments: { ...(cloud?.assignments && typeof cloud.assignments === 'object' && !Array.isArray(cloud.assignments) ? cloud.assignments : {}), ...assignments },
     hidden: pruneHidden([...(Array.isArray(cloud?.hidden) ? cloud.hidden : []), ...hiddenChats])
   }
@@ -527,6 +528,7 @@ async function loadAccountData() {
     projects = [...cloudProjects, ...projects.filter(p => p && !cloudProjects.some(q => q.id === p.id))]
     assignments = { ...assignments, ...(state?.assignments && typeof state.assignments === 'object' && !Array.isArray(state.assignments) ? state.assignments : {}) }
     hiddenChats = pruneHidden([...cloudHidden, ...hiddenChats])
+    projects=projects.filter(p=>!hiddenChats.includes('project:'+p.id))
     if (first) {
       try { guestPending = guestKeys.some(k => localStorage.getItem(k) !== null) } catch {}
       const user = authUser
