@@ -172,3 +172,11 @@ html,body{max-width:100%;overflow-x:hidden}main,#scroll-area{min-height:0}
  #sidebar .project-heading .project-add{min-width:44px;min-height:44px}
 }
 @media(max-width:760px) and (max-height:500px){#welcome .welcome-mark,#welcome>p,#suggestions,.disclaimer{display:none}.composer-area{max-height:65dvh}}
+@media(max-width:760px){
+ main{width:100%;max-width:100%;overflow:hidden}
+ main>header,.composer-area{width:100%;min-width:0;max-width:100%;flex-shrink:0}
+ #scroll-area{min-width:0;overflow-x:hidden;overscroll-behavior:contain}
+ main>header .header-left{min-width:0}
+ .header-actions{flex-shrink:0}
+ #composer,.composer-controls{min-width:0;max-width:100%}
+}
