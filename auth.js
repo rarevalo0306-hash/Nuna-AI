@@ -393,7 +393,7 @@ async function flushSync() {
 function mergeState(cloud) {
   const cloudProjects = Array.isArray(cloud?.projects) ? cloud.projects.filter(p => p && typeof p.id === 'string') : []
   return {
-    projects: [...projects, ...cloudProjects.filter(p => !projects.some(q => q.id === p.id))],
+    projects: [...projects.map(p=>{const q=cloudProjects.find(q=>q.id===p.id);return {...p,sections:[...(p.sections||[]),...(q?.sections||[]).filter(s=>!(p.sections||[]).some(t=>t.id===s.id))]};}), ...cloudProjects.filter(p => !projects.some(q => q.id === p.id))],
     assignments: { ...(cloud?.assignments && typeof cloud.assignments === 'object' && !Array.isArray(cloud.assignments) ? cloud.assignments : {}), ...assignments },
     hidden: pruneHidden([...(Array.isArray(cloud?.hidden) ? cloud.hidden : []), ...hiddenChats])
   }

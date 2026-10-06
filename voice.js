@@ -233,7 +233,7 @@ async function startRealVoice() {
     const connection=await voiceAdapters.openai.connect({signal:voiceAbort.signal,generation});
     if (generation !== voiceGeneration || (authUser?.id || null) !== voiceOwner) {connection.close();stopRealVoice();return;}
     voiceConnection=connection;
-    if (!voiceChat) {voiceChat={id:crypto.randomUUID(),title:vText('Conversación de voz','Voice conversation'),messages:[],project:currentProject};custom.unshift(voiceChat);active=voiceChat.id;}
+    if (!voiceChat) {voiceChat={id:crypto.randomUUID(),title:vText('Conversación de voz','Voice conversation'),messages:[],project:currentProject};custom.unshift(voiceChat);active=voiceChat.id;assignNewChatSection(voiceChat);}
     render(); renderVoice();
     voiceTimers.push(setTimeout(()=>{stopRealVoice();voiceSetStatus('Prueba finalizada tras 5 minutos.', 'Test ended after 5 minutes.');},connection.duration*1000));
     voiceTimers.push(setInterval(()=>{if ((authUser?.id || null) !== voiceOwner || active !== voiceChat?.id || !custom.includes(voiceChat)) {stopRealVoice();voiceSetStatus('Voz finalizada al cambiar de conversación o cuenta.', 'Voice ended after changing conversation or account.');}},500));
