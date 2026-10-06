@@ -25,23 +25,14 @@ function usageResetAt() {
 }
 function usageLine() {
   if (!authUsage) return ''
-  if (authUsage.admin) { const n = authUsage.used; return authText(`Cuenta de administrador: sin límite diario. Hoy has enviado ${n} ${n === 1 ? 'mensaje' : 'mensajes'}.`, `Administrator account: no daily limit. You have sent ${n} ${n === 1 ? 'message' : 'messages'} today.`) }
   const left = Math.max(authUsage.limit - authUsage.used, 0)
   return authText(`Has usado ${authUsage.used} de ${authUsage.limit} mensajes de hoy (te quedan ${left}). Se renuevan ${usageResetAt()}.`,
     `You have used ${authUsage.used} of today's ${authUsage.limit} messages (${left} left). They reset ${usageResetAt()}.`)
 }
-// Asks the server, which knows whether this account is an administrator (no daily limit).
 async function refreshUsage() {
   if (!authClient || !authUser) return
-  const userId = authUser.id
-  const token = await authAccessToken()
-  if (!token) return
-  try {
-    const response = await fetch('/api/chat', { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(15000) })
-    const data = await response.json()
-    // A reply that arrives after signing out (or into another account) belongs to the previous person: drop it.
-    if (response.ok && authUser?.id === userId) noteUsage(data)
-  } catch {}
+  const { data, error } = await authClient.rpc('ai_usage_today')
+  if (!error && Number.isInteger(data)) authUsage = { used: data, limit: authDailyLimit }
 }
 async function authAccessToken() {
   if (!authClient) return ''
@@ -663,6 +654,7 @@ async function initAuth() {
   updateAuthUI()
   resolveAuthReady()
   if (authNotice) openAuth('login', authNotice)
+  else if (new URLSearchParams(location.search).get('login')==='1'&&!authUser) openAuth('login')
 }
 // render() sets the page language every time; rebuild the dialog only when the language really changes.
 const authLanguageObserver = new MutationObserver(() => {
