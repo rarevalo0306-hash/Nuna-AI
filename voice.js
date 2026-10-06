@@ -33,7 +33,7 @@ voiceEnd.className = 'voice-round voice-hangup'; voiceEnd.style.cssText = '';
 voiceMute.hidden = voiceEnd.hidden = true;
 const voiceWave = document.createElement('span');
 voiceWave.className = 'voice-wave'; voiceWave.setAttribute('aria-hidden','true');
-voiceWave.innerHTML = '<i></i><i></i><i></i><i></i><i></i>';
+voiceWave.innerHTML = '<svg viewBox="0 0 72 32" aria-hidden="true"><path class="wave-base" d="M0 16Q9 2 18 16T36 16T54 16T72 16"/><path class="wave-flow" d="M0 16Q9 2 18 16T36 16T54 16T72 16"/></svg>';
 voiceActions.append(voiceMute, voiceWave, voiceEnd);
 voiceActions.hidden = true;
 document.querySelector('.composer-controls').insertBefore(voiceActions, document.getElementById('voice-open'));
@@ -71,16 +71,13 @@ voiceStyle.textContent = `
 .composer-controls .voice-round[aria-pressed=true]{background:var(--side);color:var(--muted)}
 .composer-controls .voice-hangup{background:var(--side);color:var(--text)}
 .composer-controls .voice-round svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;animation:none;filter:none}
-.voice-wave{display:flex;align-items:center;gap:3px;height:30px;padding:0 5px;color:var(--accent)}
-.voice-wave i{width:3px;height:6px;border-radius:3px;background:currentColor}
-.voice-wave i:nth-child(2),.voice-wave i:nth-child(4){height:13px}.voice-wave i:nth-child(3){height:20px}
-.voice-actions.speaking .voice-wave i{animation:nuna-wave .7s ease-in-out infinite alternate}
-.voice-actions.speaking .voice-wave i:nth-child(2n){animation-delay:-.3s}
-.voice-actions.speaking .voice-round:first-child{animation:nuna-pulse 1.2s ease-in-out infinite}
-@keyframes nuna-wave{from{transform:scaleY(.45)}to{transform:scaleY(1.2)}}
-@keyframes nuna-pulse{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 18%,transparent);opacity:.75}}
-@media(prefers-reduced-motion:reduce){.voice-actions.speaking .voice-wave i,.voice-actions.speaking .voice-round:first-child{animation:none}}
-
+ .voice-wave{display:flex;align-items:center;width:64px;height:32px;color:var(--accent);overflow:hidden}
+.voice-wave svg{width:64px;height:32px;stroke:currentColor;stroke-width:2.5;fill:none;stroke-linecap:round;animation:none;filter:none}
+.voice-wave .wave-base{opacity:.3}
+.voice-wave .wave-flow{opacity:0;stroke-dasharray:22 12;stroke-dashoffset:0}
+.voice-actions.speaking .wave-flow{opacity:1;animation:nuna-sea-flow 1.1s linear infinite}
+@keyframes nuna-sea-flow{to{stroke-dashoffset:-34}}
+@media(prefers-reduced-motion:reduce){.voice-actions.speaking .wave-flow{animation:none;stroke-dasharray:none}}
 #voice-open[aria-expanded=true]{background:var(--accent);color:var(--bg)}
 @media(max-width:760px){#voice-dialog.voice-inline{padding:10px 12px}#voice-dialog.voice-inline #voice-close{width:44px;height:44px}}
 `;
