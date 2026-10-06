@@ -22,8 +22,7 @@ function refreshProjects(){
     toggle.onclick=()=>{currentProject=p.id;currentSection=section.id;if(expandedSections.has(key))expandedSections.delete(key);else expandedSections.add(key);render()};group.append(toggle);
     if(expandedSections.has(key)){const chats=document.createElement('div');chats.className='section-chat-list';sectionChatContainers.set(key,chats);group.append(chats);const newChat=document.createElement('button');newChat.className='tree-new-chat';newChat.textContent=es?'＋ Nuevo chat':'＋ New chat';newChat.onclick=()=>{currentProject=p.id;currentSection=section.id;document.getElementById('new-chat').click()};group.append(newChat)}children.append(group);
    });
-   const createChat=document.createElement('button');createChat.className='tree-new-chat';createChat.textContent=es?'＋ Nuevo chat':'＋ New chat';createChat.onclick=()=>{currentProject=p.id;currentSection=null;document.getElementById('new-chat').click()};
-   const createSection=document.createElement('button');createSection.className='tree-new-section';createSection.textContent=es?'＋ Nueva sección':'＋ New section';createSection.onclick=()=>{currentProject=p.id;openSectionCreator(p,children)};children.append(createChat,createSection);branch.append(children);
+   branch.append(children);
   }list.append(branch);
  });
  const select=document.getElementById('select-chats');select.textContent=selecting?(es?'Cancelar selección':'Cancel selection'):(es?'Seleccionar chats':'Select chats');select.onclick=()=>{selecting=!selecting;selectedChats.clear();render()};
@@ -201,7 +200,7 @@ function openProjectActions(project,anchor){
   const actions=document.createElement('div'),cancel=document.createElement('button'),saveName=document.createElement('button');cancel.type='button';cancel.textContent=es?'Cancelar':'Cancel';cancel.onclick=close;saveName.type='submit';saveName.textContent=es?'Guardar':'Save';input.oninput=()=>saveName.disabled=!input.value.trim();
   form.onsubmit=e=>{e.preventDefault();if(!input.value.trim())return;project.name=Array.from(input.value.trim()).slice(0,80).join('');project.updatedAt=new Date().toISOString();close();persistProjects();render();};actions.append(cancel,saveName);form.append(label,actions);box.append(form);position();input.focus();input.select();
  };
- const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent=es?'Borrar':'Delete';remove.onclick=()=>{close();deleteProject(project,anchor);};box.append(edit,remove);position();edit.focus();closeProjectActions=close;
+ const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent=es?'Borrar':'Delete';remove.onclick=()=>{close();deleteProject(project,anchor);};const newChat=document.createElement('button');newChat.textContent=es?'Nuevo chat':'New chat';newChat.onclick=()=>{close();currentProject=project.id;currentSection=null;expandedProjects.add(project.id);document.getElementById('new-chat').click();};const newSection=document.createElement('button');newSection.textContent=es?'Nueva sección':'New section';newSection.onclick=()=>{close();currentProject=project.id;expandedProjects.add(project.id);render();openSectionCreator(project,projectChatContainers.get(project.id).parentElement);};box.append(newChat,newSection,edit,remove);position();newChat.focus();closeProjectActions=close;
  document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',key,true);window.addEventListener('resize',close);window.addEventListener('scroll',close,true);
 }
 const renameStyle=document.createElement('style');renameStyle.textContent=`
