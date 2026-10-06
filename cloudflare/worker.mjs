@@ -47,7 +47,9 @@ export default {
       let body;
       if(request.method==='POST'){
        if(match[1])return json({error:'not_found'},404);
-       const size=uploadSize(request);body=request.body;headers.set('X-File-Size',String(size));
+       const action=request.headers.get('X-Upload-Action')||'';
+       const size=action==='complete'?1:uploadSize(request);body=request.body;headers.set('X-File-Size',String(size));
+       for(const key of ['X-Upload-Action','X-Upload-Id','X-Part-Number'])if(request.headers.has(key))headers.set(key,request.headers.get(key));
        let name;try{name=decodeURIComponent(request.headers.get('X-File-Name')||'archivo')}catch{return json({error:'invalid_name'},400)}
        name=name.normalize('NFKC').replace(/[\x00-\x1f\x7f/\\]/g,'_').slice(0,140)||'archivo';
        const type=(request.headers.get('Content-Type')||'application/octet-stream').split(';')[0].toLowerCase().slice(0,100);
@@ -60,12 +62,13 @@ export default {
    }
   }catch(error){response=json({error:['file_too_large','empty_file'].includes(error.message)?error.message:'storage_unavailable'},['file_too_large','empty_file'].includes(error.message)?413:503)}
   const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('X-Content-Type-Options','nosniff');
-  if(origin===ORIGIN){headers.set('Access-Control-Allow-Origin',ORIGIN);headers.set('Vary','Origin');headers.set('Access-Control-Allow-Methods','GET, POST, OPTIONS');headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, X-File-Name, X-File-Size');headers.set('Access-Control-Max-Age','600')}
+  if(origin===ORIGIN){headers.set('Access-Control-Allow-Origin',ORIGIN);headers.set('Vary','Origin');headers.set('Access-Control-Allow-Methods','GET, POST, OPTIONS');headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, X-File-Name, X-File-Size, X-Upload-Action, X-Upload-Id, X-Part-Number');headers.set('Access-Control-Max-Age','600')}
   return new Response(response.body,{status:response.status,headers});
  }
 };
 export class AccountFiles {
  constructor(ctx,env){this.ctx=ctx;this.env=env;this.sql=ctx.storage.sql;
+  this.sql.exec('CREATE TABLE IF NOT EXISTS uploads (id TEXT PRIMARY KEY, multipart TEXT NOT NULL, parts TEXT NOT NULL)');
   this.sql.exec('CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, key TEXT UNIQUE NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL, category TEXT NOT NULL, size INTEGER NOT NULL CHECK(size>0), created_at TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN (\'pending\',\'ready\')))');
  }
  usage(){return Number(this.sql.exec('SELECT COALESCE(SUM(size),0) AS bytes FROM files').toArray()[0].bytes)}
@@ -84,6 +87,26 @@ export class AccountFiles {
    return new Response(object.body,{headers:{'Content-Type':'application/octet-stream','Content-Disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(file.name),'Cache-Control':'no-store','Content-Length':String(object.size)}});
   }
   if(request.method!=='POST'||id)return json({error:'not_found'},404);
+  const action=request.headers.get('X-Upload-Action')||'';
+  if(action==='part'||action==='complete'){
+   const uploadId=request.headers.get('X-Upload-Id'),file=this.sql.exec("SELECT * FROM files WHERE id=? AND state='pending'",uploadId).toArray()[0];
+   const upload=this.sql.exec('SELECT * FROM uploads WHERE id=?',uploadId).toArray()[0];
+   if(!file||!upload||!file.key.startsWith(owner+'/'))return json({error:'not_found'},404);
+   const multipart=this.env.FILES.resumeMultipartUpload(file.key,upload.multipart);
+   if(action==='part'){
+    const part=Number(request.headers.get('X-Part-Number')),size=uploadSize(request),count=Math.ceil(file.size/10_000_000);
+    if(!Number.isInteger(part)||part<1||part>count||size!==Math.min(10_000_000,file.size-(part-1)*10_000_000))return json({error:'invalid_part'},400);
+    const stream=new FixedLengthStream(size),abort=new AbortController(),pumping=request.body.pipeTo(stream.writable,{signal:abort.signal});
+    const results=await Promise.allSettled([multipart.uploadPart(part,stream.readable).catch(async error=>{abort.abort();await stream.readable.cancel().catch(()=>{});throw error}),pumping]);
+    if(results.some(r=>r.status==='rejected'))return json({error:'storage_unavailable'},503);
+    const latest=this.sql.exec('SELECT parts FROM uploads WHERE id=?',uploadId).toArray()[0];const parts=JSON.parse(latest.parts);parts[part]=results[0].value;this.sql.exec('UPDATE uploads SET parts=? WHERE id=?',JSON.stringify(parts),uploadId);return json({part},201);
+   }
+   const parts=Object.values(JSON.parse(upload.parts)).sort((a,b)=>a.partNumber-b.partNumber);
+   if(parts.length!==Math.ceil(file.size/10_000_000))return json({error:'incomplete_upload'},409);
+   await multipart.complete(parts);this.sql.exec("UPDATE files SET state='ready' WHERE id=?",uploadId);this.sql.exec('DELETE FROM uploads WHERE id=?',uploadId);
+   return json({...file,provider:'r2'},201);
+  }
+  if(action&&action!=='start')return json({error:'invalid_upload'},400);
   const size=uploadSize(request);
   // Synchronous SQLite check + reservation is atomic before any network await.
   if(limit!==null&&this.usage()+legacy+size>limit)return json({error:'quota_exceeded',limitBytes:QUOTA},409);
@@ -93,7 +116,8 @@ export class AccountFiles {
   this.sql.exec("INSERT INTO files VALUES (?,?,?,?,?,?,?,'pending')",fileId,key,name,type,category,size,created);
   try{
    // Recovery reconciles interrupted uploads; pending reservations still consume quota.
-   await this.ctx.storage.setAlarm(Date.now()+300000);
+   await this.ctx.storage.setAlarm(Date.now()+3600000);
+   if(action==='start'){const upload=await this.env.FILES.createMultipartUpload(key,{httpMetadata:{contentType:type}});this.sql.exec('INSERT INTO uploads VALUES (?,?,?)',fileId,upload.uploadId,'{}');return json({id:fileId},201);}
    const stream=new FixedLengthStream(size);
    const abort=new AbortController();
    const pumping=request.body.pipeTo(stream.writable,{signal:abort.signal});
@@ -112,7 +136,7 @@ export class AccountFiles {
   for(const file of pending){
    try{const object=await this.env.FILES.head(file.key);
     if(object?.size===file.size)this.sql.exec("UPDATE files SET state='ready' WHERE id=?",file.id);
-    else{await this.env.FILES.delete(file.key);this.sql.exec('DELETE FROM files WHERE id=?',file.id)}
+    else{const upload=this.sql.exec('SELECT * FROM uploads WHERE id=?',file.id).toArray()[0];if(upload){await this.env.FILES.resumeMultipartUpload(file.key,upload.multipart).abort();this.sql.exec('DELETE FROM uploads WHERE id=?',file.id)}await this.env.FILES.delete(file.key);this.sql.exec('DELETE FROM files WHERE id=?',file.id)}
    }catch{await this.ctx.storage.setAlarm(Date.now()+300000)}
   }
  }

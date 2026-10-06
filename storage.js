@@ -15,7 +15,13 @@ function artifactCategory(file){const type=(file.type||'').toLowerCase(),name=(f
 function fileBytes(bytes){return bytes>=1e9?(bytes/1e9).toFixed(2)+' GB':bytes>=1e6?(bytes/1e6).toFixed(1)+' MB':bytes>=1000?(bytes/1000).toFixed(1)+' KB':bytes+' B'}
 async function storeAccountArtifact(file){
  const owner=authUser?.id;if(!owner||!authClient)throw Error(lang==='es'?'Inicia sesión para guardar archivos en tu cuenta.':'Sign in to save files to your account.');if(!(file instanceof Blob)||!file.size||file.size>(artifactCategory(file)==='videos'?150000000:10485760))throw Error(lang==='es'?'Máximo 150 MB por video y 10 MB para los demás archivos.':'Maximum 150 MB per video and 10 MB for other files.');
- const response=await accountStorageRequest('/files',{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream','X-File-Name':encodeURIComponent(file.name||'archivo'),'X-File-Size':String(file.size)},body:file},owner);
+ const headers={'Content-Type':file.type||'application/octet-stream','X-File-Name':encodeURIComponent(file.name||'archivo'),'X-File-Size':String(file.size)};
+ let response;
+ if(file.size>10000000){
+  const started=await (await accountStorageRequest('/files',{method:'POST',headers:{...headers,'X-Upload-Action':'start'},body:'{}'},owner)).json();
+  for(let offset=0,part=1;offset<file.size;offset+=10000000,part++){const chunk=file.slice(offset,offset+10000000);await accountStorageRequest('/files',{method:'POST',headers:{...headers,'X-File-Size':String(chunk.size),'X-Upload-Action':'part','X-Upload-Id':started.id,'X-Part-Number':String(part)},body:chunk},owner)}
+  response=await accountStorageRequest('/files',{method:'POST',headers:{...headers,'X-Upload-Action':'complete','X-Upload-Id':started.id},body:'{}'},owner);
+ }else response=await accountStorageRequest('/files',{method:'POST',headers,body:file},owner);
  const saved=await response.json();return {...saved,path:saved.key,owner};
 }
 window.NunaArtifacts={store:storeAccountArtifact};

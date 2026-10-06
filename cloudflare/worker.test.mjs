@@ -20,6 +20,13 @@ const bigVideo=request('POST','/files',new Uint8Array(11_000_000));bigVideo.head
 const tooBig=request('POST','/files','x');tooBig.headers.set('X-File-Name','large.mp4');tooBig.headers.set('X-File-Size','150000001');await assert.rejects(video.instance.fetch(tooBig),/file_too_large/);
 const truncated=request('POST','/files','x');truncated.headers.set('X-File-Size','2');assert.equal((await video.instance.fetch(truncated)).status,503);
 const adminRequest=request('POST','/files','administrator');adminRequest.headers.set('X-Account-Limit','unlimited');assert.equal((await a.instance.fetch(adminRequest)).status,201);
+const multipartAccount=account(),multipartParts=new Map();
+multipartAccount.env.FILES.createMultipartUpload=async()=>({uploadId:'multipart-test'});
+multipartAccount.env.FILES.resumeMultipartUpload=(key,id)=>({async uploadPart(part,stream){const bytes=new Uint8Array(await new Response(stream).arrayBuffer());multipartParts.set(part,bytes);return{partNumber:part,etag:String(part)}},async complete(parts){const bytes=new Uint8Array(11000000);let offset=0;for(const part of parts){const data=multipartParts.get(part.partNumber);bytes.set(data,offset);offset+=data.length}multipartAccount.objects.set(key,{body:bytes,size:bytes.length})},async abort(){}});
+const start=request('POST','/files','{}');start.headers.set('X-File-Name','large.mp4');start.headers.set('X-File-Size','11000000');start.headers.set('X-Upload-Action','start');
+const uploadId=(await (await multipartAccount.instance.fetch(start)).json()).id;
+for(let part=1;part<=2;part++){const req=request('POST','/files',new Uint8Array(part===1?10000000:1000000));req.headers.set('X-File-Name','large.mp4');req.headers.set('X-Upload-Id',uploadId);req.headers.set('X-Upload-Action','part');req.headers.set('X-Part-Number',String(part));assert.equal((await multipartAccount.instance.fetch(req)).status,201)}
+const complete=request('POST','/files','{}');complete.headers.set('X-Upload-Id',uploadId);complete.headers.set('X-Upload-Action','complete');assert.equal((await multipartAccount.instance.fetch(complete)).status,201);assert.equal(multipartAccount.instance.usage(),11000000);
 const recovery=account();recovery.db.prepare("INSERT INTO files VALUES (?,?,?,?,?,?,?,'pending')").run('stale',owner+'/documents/stale','stale','text/plain','documents',123,new Date().toISOString());await recovery.instance.alarm();assert.equal(recovery.instance.usage(),0);
 const broken=account();broken.env.FILES.put=async()=>{throw Error('network')};assert.equal((await broken.instance.fetch(request('POST','/files','hello'))).status,503);assert.equal(broken.instance.usage(),0);
 const savedFetch=globalThis.fetch;let forwarded=0;
