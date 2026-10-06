@@ -16,12 +16,31 @@ function providerConfig() {
   };
 }
 
+// Ask the provider which models this key can use, so a "model not found" error can name real options. Returns names only.
+async function listProviderModels(provider, key) {
+  try {
+    const qwenBase = (process.env.NUNA_QWEN_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1').replace(/\/+$/, '');
+    const url = { gemini: 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', openai: 'https://api.openai.com/v1/models', anthropic: 'https://api.anthropic.com/v1/models?limit=100', deepseek: 'https://api.deepseek.com/models', grok: 'https://api.x.ai/v1/models', qwen: `${qwenBase}/models` }[provider];
+    const headers = provider === 'gemini' ? { 'x-goog-api-key': key } : provider === 'anthropic' ? { 'x-api-key': key, 'anthropic-version': '2023-06-01' } : { Authorization: `Bearer ${key}` };
+    const response = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
+    if (!response.ok) return [];
+    const data = await response.json();
+    const names = provider === 'gemini'
+      ? (data.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => String(m.name || '').replace(/^models\//, ''))
+      : (data.data || []).map(m => String(m.id || ''));
+    // Leave out models that cannot hold a text chat (embeddings, audio, images, moderation).
+    return [...new Set(names)].filter(n => /^[\w.:\/-]{1,100}$/.test(n) && !/embed|tts|whisper|dall-e|moderation|audio|realtime|transcribe|image|imagen|veo|search|aqa/i.test(n)).slice(0, 40);
+  } catch {
+    return [];
+  }
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   // Log only the error code and provider so failures can be diagnosed in Vercel logs without exposing secrets or message content.
-  const fail = (status, error, provider) => {
-    console.warn(JSON.stringify({ nuna_chat_error: error, provider: provider || null, status }));
-    return res.status(status).json(provider ? { error, provider } : { error });
+  const fail = (status, error, provider, extra = {}) => {
+    console.warn(JSON.stringify({ nuna_chat_error: error, provider: provider || null, status, ...extra }));
+    return res.status(status).json(provider ? { error, provider, ...extra } : { error });
   };
   if (req.method !== 'POST' && req.method !== 'GET') return fail(405, 'method_not_allowed');
   // Trim so a stray space or newline pasted into Vercel or the code field does not break the comparison.
@@ -45,7 +64,7 @@ module.exports = async function handler(req, res) {
   const key = config.key[provider];
   const model = config.model[provider];
   if (!key) return fail(503, 'provider_key_missing', provider);
-  if (!model) return fail(503, 'provider_model_missing', provider);
+  if (!model) return fail(503, 'provider_model_missing', provider, { available: await listProviderModels(provider, key) });
   const messages = body?.messages;
   if (!Array.isArray(messages) || !messages.length || messages.length > 30 ||
       messages.some(m => !m || !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string' || !m.content.trim() || m.content.length > 12000) ||
@@ -75,7 +94,8 @@ module.exports = async function handler(req, res) {
     });
     if (!response.ok) {
       const errors = { 400: 'provider_request', 401: 'provider_auth', 403: 'provider_permission', 404: 'provider_model', 429: 'provider_limit' };
-      return fail(response.status === 429 ? 429 : 502, errors[response.status] || 'provider_error', provider);
+      const extra = response.status === 404 ? { model, available: await listProviderModels(provider, key) } : {};
+      return fail(response.status === 429 ? 429 : 502, errors[response.status] || 'provider_error', provider, extra);
     }
     const data = await response.json();
     const text = (isGemini

@@ -76,3 +76,7 @@ El selector de la cabecera abre un menú para cambiar de modelo sin entrar en Co
 - **Verificado**: este navegador recibió una respuesta real del proveedor (chat o «Probar conexión»).
 
 `GET /api/chat` con el código privado devuelve solo si cada proveedor tiene clave y modelo configurados (`true`/`false`), nunca valores ni identificadores. «Probar conexión» hace una llamada real y breve al proveedor y puede consumir crédito de API.
+
+## Modelo no encontrado o sin configurar
+
+Si el proveedor responde que no encuentra el modelo (404), o si falta su variable de modelo, `/api/chat` pregunta al proveedor qué modelos admite la clave y devuelve hasta 40 nombres (sin embeddings, audio ni imágenes). La interfaz los muestra junto a la variable que hay que definir en Vercel, por ejemplo `NUNA_GEMINI_MODEL`, y recuerda volver a desplegar. Los nombres también quedan en la línea `nuna_chat_error` del registro. Nunca se devuelven claves.
