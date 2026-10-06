@@ -1,8 +1,8 @@
 // Shared links expose an explicit text snapshot, not the live private conversation.
-const shareButton=document.createElement('button');shareButton.id='share-chat';shareButton.type='button';shareButton.textContent='↗ Compartir';shareButton.className='share-chat';document.querySelector('.header-actions').append(shareButton);
+const shareButton=document.createElement('button');shareButton.id='share-chat';shareButton.type='button';shareButton.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2"/></svg>';shareButton.className='share-chat';document.querySelector('.header-actions').append(shareButton);
 const shareDialog=document.createElement('dialog');shareDialog.className='share-dialog';document.body.append(shareDialog);
 const sharedText=(es,en)=>lang==='es'?es:en;
-function refreshShareButton(){shareButton.hidden=!all().some(c=>c.id===active);shareButton.textContent=sharedText('↗ Compartir','↗ Share');}
+function refreshShareButton(){shareButton.hidden=!all().some(c=>c.id===active);shareButton.setAttribute('aria-label',sharedText('Compartir conversación','Share conversation'));shareButton.title=sharedText('Compartir','Share');}
 const renderBeforeShares=render;render=function(){renderBeforeShares();refreshShareButton();};refreshShareButton();
 function shareAction(label,fn){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=fn;shareDialog.append(b);return b;}
 shareButton.onclick=async()=>{
@@ -36,6 +36,6 @@ shareButton.onclick=async()=>{
  });
 };
 const shareStyles=document.createElement('style');shareStyles.textContent=`
-.share-chat{padding:8px 12px;border:1px solid var(--border);border-radius:12px;background:var(--card);color:var(--text);font-size:13px}.share-chat[hidden]{display:none}
+.share-chat{width:38px;height:38px;display:grid;place-items:center;padding:8px;border:1px solid var(--border);border-radius:12px;background:var(--card);color:var(--text);font-size:13px}.share-chat[hidden]{display:none}.share-chat svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .share-dialog{width:390px;max-width:calc(100vw - 28px);padding:24px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:18px}.share-dialog::backdrop{background:#0008}.share-dialog h2{margin:0 55px 14px 0;font-size:18px}.share-dialog p{font-size:13px;line-height:1.5;color:var(--muted)}.share-dialog button,.share-dialog a{display:block;width:100%;padding:11px;margin:8px 0;background:var(--side);color:var(--text);border:1px solid var(--border);border-radius:10px;font-size:13px;text-align:center;text-decoration:none}.share-dialog .share-close{position:absolute;right:14px;top:8px;width:auto;border:0;background:none;padding:8px;font-size:11px}.share-dialog input{box-sizing:border-box;width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px}.share-dialog button:disabled{opacity:.5}
 `;document.head.append(shareStyles);
