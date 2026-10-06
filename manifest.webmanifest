@@ -5,8 +5,8 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#073c34",
+  "background_color": "#091e28",
+  "theme_color": "#091e28",
   "icons": [
     {
       "src": "/icons/nuna-192.png",
