@@ -1,9 +1,12 @@
 // Real NUNA accounts with Supabase Auth: email and password, Google when it is enabled in Supabase, and password recovery.
 // Signed in, chats and projects are kept in the person's account (Row Level Security limits each row to its owner).
 // Signed out, they stay in this browser as before.
-var authUser = null, authClient = null, authUsage = null, authDailyLimit = 30
-let authSettings = { google: false, autoconfirm: false }, authMode = 'login', authNotice = '', authBusy = false
-let accountReady = false, accountLoading = false, syncedChats = new Map(), syncedState = '', syncTimer = null, syncChain = Promise.resolve(), syncProblem = false
+var authUser = null, authClient = null, authUsage = null, authDailyLimit = 30, accountReady = false
+let authSettings = { google: false, autoconfirm: false }, authMode = 'login', authNotice = '', authBusy = false, authLang = lang
+let accountLoading = false, syncedChats = new Map(), syncTimer = null, syncChain = Promise.resolve(), syncProblem = false, syncing = false
+let syncDelay = 8000, guestPending = false, lastAccountLoad = 0, resolveAuthReady
+const authReady = new Promise(resolve => { resolveAuthReady = resolve })
+const SUPABASE_SDK = { src: 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js', integrity: 'sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok' }
 try { localStorage.removeItem('nuna-demo-session') } catch {}
 const authDialog = document.createElement('dialog')
 authDialog.id = 'auth-dialog'
@@ -11,17 +14,20 @@ document.body.append(authDialog)
 
 const authText = (es, en) => lang === 'es' ? es : en
 function cloudMode() { return Boolean(authUser && accountReady) }
-// Today's messages reset at 00:00 UTC; show that moment in the person's own time.
-function usageResetTime() {
+// Text cut in the middle of an emoji leaves half of it, which the database rejects; replace such halves.
+const wellFormed = text => typeof text.toWellFormed === 'function' ? text.toWellFormed() : text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD')
+// Today's messages reset at 00:00 UTC; say when that is in the person's own time ("a la 1:00", "a las 19:00").
+function usageResetAt() {
   const d = new Date()
   d.setUTCHours(24, 0, 0, 0)
-  return d.toLocaleTimeString(lang === 'es' ? 'es' : 'en', { hour: 'numeric', minute: '2-digit' })
+  const time = d.toLocaleTimeString(lang === 'es' ? 'es' : 'en', { hour: 'numeric', minute: '2-digit' })
+  return lang === 'es' ? (d.getHours() === 1 ? 'a la ' : 'a las ') + time : 'at ' + time
 }
 function usageLine() {
   if (!authUsage) return ''
   const left = Math.max(authUsage.limit - authUsage.used, 0)
-  return authText(`Has usado ${authUsage.used} de ${authUsage.limit} mensajes de hoy (te quedan ${left}). Se renuevan a las ${usageResetTime()}.`,
-    `You have used ${authUsage.used} of today's ${authUsage.limit} messages (${left} left). They reset at ${usageResetTime()}.`)
+  return authText(`Has usado ${authUsage.used} de ${authUsage.limit} mensajes de hoy (te quedan ${left}). Se renuevan ${usageResetAt()}.`,
+    `You have used ${authUsage.used} of today's ${authUsage.limit} messages (${left} left). They reset ${usageResetAt()}.`)
 }
 async function refreshUsage() {
   if (!authClient || !authUser) return
@@ -32,6 +38,15 @@ async function authAccessToken() {
   if (!authClient) return ''
   const { data } = await authClient.auth.getSession()
   return data.session?.access_token || ''
+}
+// After signing in, wait (up to a limit) until the account's conversations are loaded, so new chats go to the account.
+async function waitForAccount(ms = 15000) {
+  const end = Date.now() + ms
+  while (!accountReady && Date.now() < end) {
+    if (!authUser && !(await authAccessToken())) break
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  return accountReady
 }
 
 function authErrorText(error) {
@@ -77,7 +92,8 @@ function showAuth() {
   const message = document.createElement('p')
   message.className = 'auth-message'
   message.setAttribute('role', 'status')
-  message.textContent = authNotice
+  // Filled right after it is on screen, so screen readers announce it.
+  if (authNotice) setTimeout(() => { if (message.isConnected && !message.textContent) message.textContent = authNotice }, 50)
   const say = text => { message.textContent = text }
   const link = (text, onclick) => {
     const b = document.createElement('button')
@@ -131,6 +147,8 @@ function showAuth() {
     google.textContent = authText('G  Continuar con Google', 'G  Continue with Google')
     google.onclick = async () => {
       google.disabled = true
+      // Google opens in this tab: keep the message being written for when the person comes back.
+      try { const draft = document.getElementById('prompt').value; if (draft.trim()) sessionStorage.setItem('nuna-draft', draft) } catch {}
       say(authText('Abriendo Google…', 'Opening Google…'))
       const { error } = await authClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } })
       if (error) { google.disabled = false; say(authErrorText(error)) }
@@ -166,7 +184,9 @@ function showAuth() {
   if (password && authMode !== 'login') {
     const hint = document.createElement('small')
     hint.className = 'auth-hint'
+    hint.id = 'auth-password-hint'
     hint.textContent = authText('Mínimo 8 caracteres.', 'At least 8 characters.')
+    password.setAttribute('aria-describedby', hint.id)
     password.after(hint)
   }
   const submit = document.createElement('button')
@@ -190,7 +210,7 @@ function showAuth() {
         const fullName = name.value.trim()
         const { data, error } = await authClient.auth.signUp({ email: email.value.trim(), password: password.value, options: { emailRedirectTo: redirectTo, data: fullName ? { full_name: fullName } : {} } })
         if (error) throw error
-        if (fullName && !profileName) { profileName = fullName; try { localStorage.setItem('nuna-profile', profileName) } catch {} updateProfile() }
+        if (fullName) setAccountName(fullName)
         if (data.session) authDialog.close()
         else { authMode = 'sent'; authNotice = authText(`Te enviamos un enlace a ${email.value.trim()} para confirmar tu cuenta. Ábrelo en este dispositivo y volverás a NUNA con la sesión iniciada.`, `We sent a link to ${email.value.trim()} to confirm your account. Open it on this device to come back to NUNA signed in.`); showAuth() }
       } else if (authMode === 'forgot') {
@@ -262,11 +282,27 @@ async function signOutAccount(say, button) {
 }
 
 // ---- Header, account menu and sidebar profile ----
+// The display name can come from the account (Google, or the name given at sign-up). That name belongs to the account,
+// so it is cleared on sign-out instead of carrying over to the next person who uses this browser.
+function setAccountName(name) {
+  profileName = name
+  try { localStorage.setItem('nuna-profile', name); localStorage.setItem('nuna-profile-source', 'account') } catch {}
+  updateProfile()
+}
+function clearAccountName() {
+  let source = ''
+  try { source = localStorage.getItem('nuna-profile-source') || '' } catch {}
+  if (source !== 'account') return
+  profileName = ''
+  try { localStorage.removeItem('nuna-profile'); localStorage.removeItem('nuna-profile-source') } catch {}
+  document.querySelector('.avatar').textContent = 'T'
+}
 function updateAuthUI() {
   const header = document.getElementById('auth-header'), account = document.getElementById('auth-account')
-  const label = authUser ? (profileName || authUser.email || '').slice(0, 24) : authText('Iniciar sesión', 'Log in')
-  header.textContent = label
-  header.setAttribute('aria-label', authUser ? authText('Tu cuenta: ', 'Your account: ') + (authUser.email || '') : authText('Iniciar sesión o registrarse', 'Log in or sign up'))
+  header.textContent = authUser ? (profileName || authUser.email || '').slice(0, 24) : authText('Iniciar sesión', 'Log in')
+  // The visible text is the accessible name; the email goes in the tooltip.
+  header.removeAttribute('aria-label')
+  header.title = authUser ? authText('Tu cuenta: ', 'Your account: ') + (authUser.email || '') : authText('Iniciar sesión o registrarse', 'Log in or sign up')
   account.textContent = authUser ? authText('Cerrar sesión', 'Log out') : authText('Iniciar sesión / Registrarse', 'Log in / Sign up')
   header.onclick = () => openAuth(authUser ? 'account' : 'login')
   account.onclick = () => {
@@ -281,8 +317,11 @@ const authUiRender = render
 render = function () { authUiRender(); updateAuthUI() }
 
 // ---- Sync between this page and the account ----
-const chatTitle = c => (typeof c.title === 'string' ? c.title : c.title?.[lang] || '').trim().slice(0, 200) || 'Chat'
+const chatTitle = c => wellFormed((typeof c.title === 'string' ? c.title : c.title?.[lang] || '').trim()).slice(0, 200).trim() || 'Chat'
 const chatRecord = c => JSON.stringify([chatTitle(c), c.project || null, c.messages])
+const chatMessages = c => c.messages.map(m => Array.isArray(m) ? m.map(x => typeof x === 'string' ? wellFormed(x) : x) : m)
+// Deleted chat ids are kept (as tombstones) so another device does not bring them back; only the newest ones are kept.
+const pruneHidden = list => { const ids = [...new Set(list.filter(id => typeof id === 'string'))]; const ex = new Set(examples.map(e => e.id)); return [...ids.filter(id => ex.has(id)), ...ids.filter(id => !ex.has(id)).slice(-2000)] }
 function setSyncProblem(problem) {
   if (problem === syncProblem) return
   syncProblem = problem
@@ -290,13 +329,14 @@ function setSyncProblem(problem) {
     ? authText('No se pudieron guardar los últimos cambios en tu cuenta. Se volverá a intentar automáticamente.', 'Your latest changes could not be saved to your account. Retrying automatically.')
     : authText('Cambios guardados en tu cuenta.', 'Changes saved to your account.')
 }
-// Errors that retrying cannot fix: a conversation over the size limit, or the account's conversation limit.
-const permanentSyncError = error => ['23514', '22001', 'P0001'].includes(String(error?.code || ''))
+// A request the database refused for its content (not for the session or the network) will fail again if retried.
+const permanentSyncError = (error, status) => (status >= 400 && status < 500 && ![401, 403, 408, 429].includes(status)) || ['23514', '22001', '22P02', 'P0001'].includes(String(error?.code || ''))
+const limitError = error => /conversation_limit|storage_limit/.test(String(error?.message || ''))
 function permanentSyncText(error) {
   const m = String(error?.message || '')
   if (/conversation_limit/.test(m)) return authText('Tu cuenta llegó al máximo de 2000 conversaciones guardadas. Borra algunas para guardar las nuevas.', 'Your account reached the limit of 2000 saved conversations. Delete some to save new ones.')
   if (/storage_limit/.test(m)) return authText('Tu cuenta llegó al máximo de 50 MB de conversaciones guardadas. Borra algunas para guardar las nuevas.', 'Your account reached the 50 MB limit for saved conversations. Delete some to save new ones.')
-  return authText('Una conversación es demasiado larga para guardarla en tu cuenta. Empieza un chat nuevo.', 'A conversation is too long to save to your account. Start a new chat.')
+  return authText('Una conversación no se pudo guardar en tu cuenta (es demasiado larga o tiene caracteres no válidos). Empieza un chat nuevo.', 'A conversation could not be saved to your account (it is too long or has invalid characters). Start a new chat.')
 }
 function queueSync(delay = 400) {
   if (!cloudMode()) return
@@ -310,30 +350,60 @@ async function flushSync() {
   syncChain = syncChain.then(runSync)
   return syncChain
 }
+// Projects, assignments and deleted ids saved by another device are merged in, never overwritten.
+function mergeState(cloud) {
+  const cloudProjects = Array.isArray(cloud?.projects) ? cloud.projects.filter(p => p && typeof p.id === 'string') : []
+  return {
+    projects: [...projects, ...cloudProjects.filter(p => !projects.some(q => q.id === p.id))],
+    assignments: { ...(cloud?.assignments && typeof cloud.assignments === 'object' && !Array.isArray(cloud.assignments) ? cloud.assignments : {}), ...assignments },
+    hidden: pruneHidden([...(Array.isArray(cloud?.hidden) ? cloud.hidden : []), ...hiddenChats])
+  }
+}
 async function runSync() {
-  if (!cloudMode()) return true
+  if (!cloudMode() || accountLoading) return !accountLoading
+  syncing = true
   const owner = authUser.id
-  const current = new Map(custom.filter(c => c && typeof c.id === 'string' && Array.isArray(c.messages)).map(c => [c.id, c]))
-  const upserts = [], deletes = []
-  current.forEach((c, id) => { const record = chatRecord(c); if (syncedChats.get(id) !== record) upserts.push({ id, c, record }) })
-  syncedChats.forEach((_, id) => { if (!current.has(id)) deletes.push(id) })
-  const stateRecord = JSON.stringify([projects, assignments, hiddenChats])
+  let allSaved = true
   try {
+    const { data: cloudState, error: readError } = await authClient.from('user_state').select('projects,assignments,hidden').maybeSingle()
+    if (readError) throw readError
+    const merged = mergeState(cloudState)
+    // A chat deleted on another device is in the merged tombstones: remove it here instead of uploading it again.
+    const hidden = new Set(merged.hidden)
+    const deletedElsewhere = custom.filter(c => hidden.has(c.id))
+    const projectsChanged = merged.projects.length !== projects.length
+    projects = merged.projects
+    assignments = merged.assignments
+    hiddenChats = merged.hidden
+    if (deletedElsewhere.length) {
+      custom = custom.filter(c => !hidden.has(c.id))
+      deletedElsewhere.forEach(c => syncedChats.delete(c.id))
+      if (deletedElsewhere.some(c => c.id === active)) active = null
+    }
+    if (deletedElsewhere.length || projectsChanged) render()
+
+    const current = new Map(custom.filter(c => c && typeof c.id === 'string' && Array.isArray(c.messages)).map(c => [c.id, c]))
+    const upserts = [], deletes = []
+    current.forEach((c, id) => { const record = chatRecord(c); if (syncedChats.get(id) !== record) upserts.push({ id, c, record }) })
+    syncedChats.forEach((_, id) => { if (!current.has(id)) deletes.push(id) })
+    const send = rows => authClient.from('conversations').upsert(rows.map(({ id, c }) => ({ owner, id, title: chatTitle(c), project: c.project || null, messages: chatMessages(c), updated_at: new Date().toISOString() })), { onConflict: 'owner,id' })
     // Send conversations in batches of about 1 MB so one request never gets too large.
     for (let i = 0; i < upserts.length;) {
       const batch = []
       let size = 0
       while (i < upserts.length && (batch.length === 0 || (size + upserts[i].record.length < 1000000 && batch.length < 50))) { size += upserts[i].record.length; batch.push(upserts[i++]) }
-      const send = rows => authClient.from('conversations').upsert(rows.map(({ id, c }) => ({ owner, id, title: chatTitle(c), project: c.project || null, messages: c.messages, updated_at: new Date().toISOString() })), { onConflict: 'owner,id' })
-      const { error } = await send(batch)
+      const { error, status } = await send(batch)
       if (!error) { batch.forEach(u => syncedChats.set(u.id, u.record)); continue }
-      if (!permanentSyncError(error)) throw error
-      // Save the rest one by one and set aside the ones that can never be saved until they change.
+      if (!permanentSyncError(error, status)) throw error
+      // Save the rest one by one. A chat refused for its content is set aside until it changes; one refused by
+      // the account limits stays pending so it is saved once there is room.
       for (const u of batch) {
-        const { error: rowError } = await send([u])
-        if (rowError && !permanentSyncError(rowError)) throw rowError
-        syncedChats.set(u.id, u.record)
-        if (rowError) openAIStatus.textContent = permanentSyncText(rowError)
+        const { error: rowError, status: rowStatus } = await send([u])
+        if (!rowError) { syncedChats.set(u.id, u.record); continue }
+        if (!permanentSyncError(rowError, rowStatus)) throw rowError
+        allSaved = false
+        if (!limitError(rowError)) syncedChats.set(u.id, u.record)
+        openAIStatus.textContent = permanentSyncText(rowError)
       }
     }
     for (let i = 0; i < deletes.length; i += 100) {
@@ -342,20 +412,29 @@ async function runSync() {
       if (error) throw error
       ids.forEach(id => syncedChats.delete(id))
     }
-    if (stateRecord !== syncedState) {
+    const stateRecord = JSON.stringify([projects, assignments, hiddenChats])
+    if (!cloudState || stateRecord !== JSON.stringify([cloudState.projects, cloudState.assignments, cloudState.hidden])) {
       const { error } = await authClient.from('user_state').upsert({ owner, projects, assignments, hidden: hiddenChats, updated_at: new Date().toISOString() }, { onConflict: 'owner' })
       if (error) throw error
-      syncedState = stateRecord
     }
+    syncDelay = 8000
     if (syncProblem) setSyncProblem(false)
-    return true
+    // The browser's own copy of chats made before signing in is removed only once they are all in the account.
+    if (guestPending && allSaved) { guestPending = false; try { guestKeys.forEach(k => localStorage.removeItem(k)) } catch {} }
+    return allSaved
   } catch (error) {
     console.warn('nuna_sync_error', error?.code || error?.message || error)
     setSyncProblem(true)
-    queueSync(8000)
+    queueSync(syncDelay)
+    syncDelay = Math.min(syncDelay * 2, 300000)
     return false
+  } finally {
+    syncing = false
   }
 }
+const syncPending = () => Boolean(syncTimer || syncing || syncProblem)
+// Leaving the page during a save would lose the latest changes: ask first.
+window.addEventListener('beforeunload', e => { if (cloudMode() && syncPending()) { e.preventDefault(); e.returnValue = '' } })
 
 const guestSave = save, guestPersistProjects = persistProjects
 save = function () {
@@ -366,16 +445,18 @@ save = function () {
 persistProjects = function () { if (cloudMode()) queueSync(); else guestPersistProjects() }
 const guestKeys = ['nuna-chats', 'nuna-projects', 'nuna-hidden', 'nuna-assignments']
 
-// After signing in, load the account's data. Chats made on this device before signing in are added to the account
-// (the same objects are kept, so a reply that is still on its way lands in the right chat) and then removed from the browser.
+// Load the account's data after signing in, and again when the tab comes back (another device may have changed it).
+// Chats made on this device before signing in are added to the account. Chats already on screen keep the same objects,
+// so a reply that is still on its way lands in the right chat; a chat with changes not uploaded yet keeps those changes.
 async function loadAccountData() {
+  if (accountLoading) return
   accountLoading = true
-  accountReady = false
+  const first = !accountReady
   // Compare ids, not objects: Supabase hands over a new user object on every token refresh.
-  const user = authUser, userId = user.id
+  const userId = authUser?.id
   const stillSameUser = () => authUser?.id === userId
-  openAIStatus.textContent = authText('Cargando tus conversaciones…', 'Loading your conversations…')
   try {
+    if (first) openAIStatus.textContent = authText('Cargando tus conversaciones…', 'Loading your conversations…')
     const rows = []
     for (let from = 0; ; from += 1000) {
       const { data, error } = await authClient.from('conversations').select('id,title,project,messages').order('updated_at', { ascending: false }).range(from, from + 999)
@@ -386,52 +467,80 @@ async function loadAccountData() {
     const { data: state, error } = await authClient.from('user_state').select('projects,assignments,hidden').maybeSingle()
     if (error) throw error
     if (!stillSameUser()) return
-    const ids = new Set(rows.map(r => r.id))
-    const local = custom.filter(c => c && typeof c.id === 'string' && Array.isArray(c.messages) && !ids.has(c.id))
-    custom = [...local, ...rows.map(r => ({ id: r.id, title: r.title, messages: Array.isArray(r.messages) ? r.messages : [], ...(r.project ? { project: r.project } : {}) }))]
-    syncedChats = new Map(rows.map(r => [r.id, chatRecord({ title: r.title, project: r.project, messages: Array.isArray(r.messages) ? r.messages : [] })]))
-    const cloudProjects = Array.isArray(state?.projects) ? state.projects : []
+    const cloudHidden = new Set(Array.isArray(state?.hidden) ? state.hidden : [])
+    const cloudIds = new Set(rows.map(r => r.id))
+    const mine = new Map(custom.filter(c => c && typeof c.id === 'string' && Array.isArray(c.messages)).map(c => [c.id, c]))
+    // Kept from this page: chats the account does not have and this page never uploaded (guest chats, unsent new ones).
+    const local = [...mine.values()].filter(c => !cloudIds.has(c.id) && !syncedChats.has(c.id) && !cloudHidden.has(c.id))
+    const fromCloud = rows.filter(r => !cloudHidden.has(r.id)).map(r => {
+      const cloud = { title: r.title, messages: Array.isArray(r.messages) ? r.messages : [], project: r.project || undefined }
+      const chat = mine.get(r.id)
+      if (!chat) return { id: r.id, ...cloud }
+      if (syncedChats.has(r.id) && chatRecord(chat) !== syncedChats.get(r.id)) return chat
+      chat.title = cloud.title
+      chat.messages = cloud.messages
+      if (cloud.project) chat.project = cloud.project; else delete chat.project
+      return chat
+    })
+    custom = [...local, ...fromCloud]
+    syncedChats = new Map(rows.filter(r => !cloudHidden.has(r.id)).map(r => [r.id, chatRecord({ title: r.title, project: r.project, messages: Array.isArray(r.messages) ? r.messages : [] })]))
+    const cloudProjects = Array.isArray(state?.projects) ? state.projects.filter(p => p && typeof p.id === 'string') : []
     projects = [...cloudProjects, ...projects.filter(p => p && !cloudProjects.some(q => q.id === p.id))]
-    assignments = { ...assignments, ...(state?.assignments && typeof state.assignments === 'object' ? state.assignments : {}) }
-    hiddenChats = [...new Set([...(Array.isArray(state?.hidden) ? state.hidden : []), ...hiddenChats])]
-    syncedState = state ? JSON.stringify([state.projects, state.assignments, state.hidden]) : ''
+    assignments = { ...assignments, ...(state?.assignments && typeof state.assignments === 'object' && !Array.isArray(state.assignments) ? state.assignments : {}) }
+    hiddenChats = pruneHidden([...cloudHidden, ...hiddenChats])
+    if (first) {
+      try { guestPending = guestKeys.some(k => localStorage.getItem(k) !== null) } catch {}
+      const user = authUser
+      const metaName = String(user.user_metadata?.full_name || user.user_metadata?.name || '').trim().slice(0, 60)
+      let source = ''
+      try { source = localStorage.getItem('nuna-profile-source') || '' } catch {}
+      if (metaName && (!profileName || source === 'account')) setAccountName(metaName)
+    }
     accountReady = true
-    try { guestKeys.forEach(k => localStorage.removeItem(k)) } catch {}
+    lastAccountLoad = Date.now()
     if (active && !custom.some(c => c.id === active) && !examples.some(c => c.id === active)) active = null
     if (currentProject && !projects.some(p => p.id === currentProject)) currentProject = null
-    const metaName = String(user.user_metadata?.full_name || user.user_metadata?.name || '').trim().slice(0, 60)
-    if (!profileName && metaName) { profileName = metaName; try { localStorage.setItem('nuna-profile', profileName) } catch {} updateProfile() }
-    openAIStatus.textContent = local.length ? authText('Sesión iniciada. Se añadieron a tu cuenta los chats de este dispositivo.', 'Signed in. Chats from this device were added to your account.') : authText('Sesión iniciada.', 'Signed in.')
+    if (first) openAIStatus.textContent = local.length ? authText('Sesión iniciada. Los chats de este dispositivo se están añadiendo a tu cuenta.', 'Signed in. Chats from this device are being added to your account.') : authText('Sesión iniciada.', 'Signed in.')
     render()
     queueSync(0)
-    refreshUsage()
+    if (first) refreshUsage()
   } catch (error) {
     console.warn('nuna_load_error', error?.code || error?.message || error)
-    if (stillSameUser()) {
+    if (first && stillSameUser()) {
       openAIStatus.textContent = authText('No se pudieron cargar tus conversaciones. Se volverá a intentar en unos segundos.', 'Your conversations could not be loaded. Retrying in a few seconds.')
-      setTimeout(() => { if (stillSameUser() && !accountReady && !accountLoading) loadAccountData() }, 8000)
+      setTimeout(() => { if (stillSameUser() && !accountReady) loadAccountData() }, 8000)
     }
   } finally {
     accountLoading = false
   }
 }
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !cloudMode() || syncPending() || openAIBusy || Date.now() - lastAccountLoad < 30000) return
+  syncChain = syncChain.then(loadAccountData)
+})
 function leaveAccountData() {
+  const wasReady = accountReady
   clearTimeout(syncTimer)
   syncTimer = null
   accountReady = false
   syncedChats = new Map()
-  syncedState = ''
   syncProblem = false
+  syncDelay = 8000
+  guestPending = false
   authUsage = null
-  custom = []
-  projects = []
-  assignments = {}
-  hiddenChats = []
-  active = null
-  currentProject = null
-  selectedChats.clear()
-  guestSave()
-  guestPersistProjects()
+  clearAccountName()
+  // Until the account had loaded, what is on screen is still this browser's own data: keep it.
+  if (wasReady) {
+    custom = []
+    projects = []
+    assignments = {}
+    hiddenChats = []
+    active = null
+    currentProject = null
+    selectedChats.clear()
+    guestSave()
+    guestPersistProjects()
+  }
   const small = document.querySelector('.profile small')
   if (small) small.textContent = strings[lang].personal
   render()
@@ -451,6 +560,20 @@ async function handleAuthChange(event, session) {
   if (!user && event === 'SIGNED_OUT') openAIStatus.textContent = authText('Sesión cerrada.', 'Logged out.')
 }
 
+// The Supabase library is loaded here instead of in the HTML, so a slow or blocked CDN never holds up the page.
+function loadSupabaseSdk() {
+  if (window.supabase?.createClient) return Promise.resolve(true)
+  return new Promise(resolve => {
+    const script = document.createElement('script')
+    script.src = SUPABASE_SDK.src
+    script.integrity = SUPABASE_SDK.integrity
+    script.crossOrigin = 'anonymous'
+    const timer = setTimeout(() => resolve(false), 15000)
+    script.onload = () => { clearTimeout(timer); resolve(Boolean(window.supabase?.createClient)) }
+    script.onerror = () => { clearTimeout(timer); resolve(false) }
+    document.head.append(script)
+  })
+}
 async function initAuth() {
   // Links from confirmation or recovery emails that expired come back with an error in the address.
   const hash = new URLSearchParams(location.hash.slice(1)), query = new URLSearchParams(location.search)
@@ -461,26 +584,44 @@ async function initAuth() {
       ? authText('El enlace caducó o ya se usó. Inicia sesión o pide uno nuevo.', 'The link expired or was already used. Log in or request a new one.')
       : authText('No se pudo completar el acceso desde el enlace. Inténtalo de nuevo.', 'Sign-in from the link did not complete. Please try again.')
   }
+  // A message written before going to Google comes back to the box.
   try {
-    const response = await fetch('/api/config', { signal: AbortSignal.timeout(10000) })
-    const config = await response.json()
+    const draft = sessionStorage.getItem('nuna-draft')
+    sessionStorage.removeItem('nuna-draft')
+    if (draft && !document.getElementById('prompt').value) { document.getElementById('prompt').value = draft; refreshOpenAITest() }
+  } catch {}
+  try {
+    const [config, sdk] = await Promise.all([
+      fetch('/api/config', { signal: AbortSignal.timeout(10000) }).then(r => r.json()),
+      loadSupabaseSdk()
+    ])
     if (Number.isInteger(config.dailyLimit)) authDailyLimit = config.dailyLimit
-    if (config.supabase && window.supabase?.createClient) {
+    if (config.supabase && sdk) {
       authClient = window.supabase.createClient(config.supabase.url, config.supabase.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'nuna-auth' } })
-      // Offer Google only when it is actually enabled in Supabase.
+      // Offer Google only when it is actually enabled in Supabase. An open form is rebuilt only if nothing was typed yet.
       fetch(config.supabase.url + '/auth/v1/settings', { headers: { apikey: config.supabase.key }, signal: AbortSignal.timeout(10000) })
         .then(r => r.json()).then(s => {
           authSettings = { google: Boolean(s.external?.google), autoconfirm: Boolean(s.mailer_autoconfirm) }
-          if (authDialog.open && (authMode === 'login' || authMode === 'signup')) showAuth()
+          const typed = [...authDialog.querySelectorAll('input[name=email], input[name=password]')].some(i => i.value)
+          if (authSettings.google && authDialog.open && (authMode === 'login' || authMode === 'signup') && !typed) showAuth()
         }).catch(() => {})
       // Supabase advises not to call its methods inside this callback, so the work runs right after it.
       authClient.auth.onAuthStateChange((event, session) => setTimeout(() => handleAuthChange(event, session), 0))
+      await authClient.auth.getSession()
     }
   } catch {}
   updateAuthUI()
+  resolveAuthReady()
   if (authNotice) openAuth('login', authNotice)
 }
-const authLanguageObserver = new MutationObserver(() => { updateAuthUI(); if (authDialog.open) showAuth() })
+// render() sets the page language every time; rebuild the dialog only when the language really changes.
+const authLanguageObserver = new MutationObserver(() => {
+  updateAuthUI()
+  if (lang === authLang) return
+  authLang = lang
+  if (authDialog.open) showAuth()
+})
 authLanguageObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
 updateAuthUI()
-initAuth()
+// Start once every script has run, so openai.js (status line, send) exists before any auth event.
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initAuth); else initAuth()
