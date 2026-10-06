@@ -39,11 +39,15 @@ voiceActions.hidden = true;
 document.querySelector('.composer-controls').insertBefore(voiceActions, document.getElementById('voice-open'));
 const voiceAudio = document.createElement('audio');
 voiceAudio.autoplay = true;
-voiceAudio.controls = true;
+voiceAudio.controls = false;
+const voiceListen = document.createElement('button');
+voiceListen.type='button';voiceListen.hidden=true;voiceListen.textContent='Escuchar a NUNA';
+voiceListen.onclick=()=>voiceAudio.play().then(()=>{voiceListen.hidden=true;voiceSetStatus('Te escucho','Listening');}).catch(()=>voiceSetStatus('No se pudo reproducir el audio. Intenta otra vez.','Audio could not play. Please try again.'));
+voiceListen.style.cssText='border:1px solid var(--border);border-radius:12px;padding:8px 12px;background:var(--side);color:var(--text)';
 voiceAudio.setAttribute('playsinline', '');
 voiceAudio.hidden = true;
 voiceAudio.style.cssText = 'width:100%;height:36px;margin-top:8px';
-voiceDialog.append(voiceToolbar, voiceStatus, voiceNote, voiceAudio);
+voiceDialog.append(voiceToolbar, voiceStatus, voiceNote, voiceAudio, voiceListen);
 oldVoiceDialog.remove();
 document.querySelector('.composer-area').prepend(voiceDialog);
 const voiceStyle = document.createElement('style');
@@ -108,7 +112,7 @@ function renderVoice() {
   voiceActions.classList.toggle('speaking', voiceSpeaking);
   voiceActions.classList.toggle('connecting', voiceStarting);
   voiceToolbar.hidden = running || voiceStarting;
-  voiceNote.hidden = running;
+  voiceNote.hidden = running || voiceStarting;
   voiceMute.hidden = false; voiceMute.disabled = !running;
   voiceEnd.hidden = !running && !voiceStarting;
   const muteLabel = voiceMuted ? vText('Activar micrófono', 'Unmute microphone') : vText('Silenciar micrófono', 'Mute microphone');
@@ -176,13 +180,15 @@ const voiceAdapters = {
       if (generation !== voiceGeneration) { stream.getTracks().forEach(t => t.stop()); throw new DOMException('Cancelled', 'AbortError'); }
       const pc = new RTCPeerConnection();
       const channel = pc.createDataChannel('oai-events');
-      const close = () => { stream.getTracks().forEach(t => t.stop()); channel.close(); pc.close(); voiceAudio.pause(); voiceAudio.srcObject = null; voiceAudio.hidden = true; };
+      let disconnectTimer;
+      const close = () => { clearTimeout(disconnectTimer); stream.getTracks().forEach(t => t.stop()); channel.close(); pc.close(); voiceAudio.pause(); voiceAudio.srcObject = null; voiceAudio.hidden = true; voiceListen.hidden=true; };
       try {
         stream.getTracks().forEach(track => pc.addTrack(track, stream));
         pc.ontrack = event => {
+          if (generation !== voiceGeneration) return;
           voiceAudio.srcObject = event.streams[0] || new MediaStream([event.track]);
           voiceAudio.hidden = true;
-          voiceAudio.play().catch(() => {voiceAudio.hidden=false;voiceSetStatus('Pulsa reproducir para escuchar a NUNA.', 'Press play to hear NUNA.');});
+          voiceAudio.play().catch(() => {if(generation !== voiceGeneration)return;voiceListen.hidden=false;voiceSetStatus('Pulsa reproducir para escuchar a NUNA.', 'Press play to hear NUNA.');});
         };
         channel.onmessage = event => { if (generation !== voiceGeneration) return; try { receiveVoiceEvent(JSON.parse(event.data)); } catch {} };
         channel.onopen = () => {
@@ -193,7 +199,10 @@ const voiceAdapters = {
         };
         pc.onconnectionstatechange = () => {
           if (generation !== voiceGeneration) return;
-          if (['failed','disconnected','closed'].includes(pc.connectionState)) { stopRealVoice(); voiceSetStatus('La conexión de voz terminó.', 'Voice connection ended.'); }
+          clearTimeout(disconnectTimer);
+          const finish = () => {if(generation !== voiceGeneration)return;stopRealVoice();voiceSetStatus('La conexión de voz terminó.', 'Voice connection ended.');};
+          if(pc.connectionState === 'disconnected') disconnectTimer=setTimeout(finish,8000);
+          else if(['failed','closed'].includes(pc.connectionState)) finish();
         };
         await pc.setLocalDescription(await pc.createOffer());
         const response = await fetch('/api/voice',{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({sdp:pc.localDescription.sdp,language:lang,project:projectContextForChat(voiceChat)}),signal});
@@ -251,7 +260,7 @@ voiceEnd.onclick=closeInlineVoice;
 voiceMute.onclick=()=>{voiceMuted=!voiceMuted;voiceConnection?.mute(voiceMuted);voiceSetStatus(voiceMuted?'Micrófono silenciado':'Te escucho',voiceMuted?'Microphone muted':'Listening');};
 // Stop audio on navigation, backgrounding and logout. Typed turns wait until voice has ended.
 window.addEventListener('pagehide',stopRealVoice);
-document.addEventListener('visibilitychange',()=>{if(document.hidden && (voiceConnection || voiceStarting)){stopRealVoice();voiceSetStatus('Voz finalizada al salir de la página.', 'Voice ended when leaving the page.');}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden && voiceConnection){stopRealVoice();voiceSetStatus('Voz finalizada al salir de la página.', 'Voice ended when leaving the page.');}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!voiceDialog.hidden&&!document.querySelector('dialog[open]')){e.preventDefault();closeInlineVoice();}});
 window.addEventListener('load',()=>{const textSend=send;send=function(value){if(voiceConnection || voiceStarting){voiceSetStatus('Finaliza la voz antes de enviar un mensaje escrito.', 'End voice before sending a typed message.');return;}return textSend(value);};});
 new MutationObserver(renderVoice).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});

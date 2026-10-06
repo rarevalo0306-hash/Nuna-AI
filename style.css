@@ -111,3 +111,7 @@ body{--nuna-font-scale:1}body[data-font-size=small]{--nuna-font-scale:.9}body[da
 #settings-dialog .settings-account p{margin:0;font-size:13px;line-height:1.5;word-break:break-word;flex:1 1 220px}
 #auth-header{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:600px){#auth-header{max-width:110px}}
+
+/* Keep the mobile chat within the screen and avoid Safari input zoom. */
+html,body{max-width:100%;overflow-x:hidden}main,#scroll-area{min-height:0}
+@media(max-width:760px){#prompt,.settings-field input,.settings-field select,.settings-field textarea,.auth-form input{font-size:16px!important}.composer-area{padding-bottom:max(12px,env(safe-area-inset-bottom));flex-shrink:0}header{padding-left:12px;padding-right:12px}#settings-dialog{max-width:calc(100vw - 20px);max-height:calc(100dvh - 20px);padding:16px}.settings-panel{min-width:0;overflow-wrap:anywhere}#voice-dialog.voice-inline{margin-bottom:6px;padding:8px 12px}#voice-note{display:none!important}}
