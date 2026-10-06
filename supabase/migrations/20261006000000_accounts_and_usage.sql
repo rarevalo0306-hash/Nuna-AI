@@ -5,8 +5,9 @@
 -- Avisos esperados del asesor de seguridad:
 -- * private.ai_usage y private.ai_reservations tienen RLS sin políticas: nadie debe leerlas ni escribirlas directamente.
 -- * consume_ai_message, refund_ai_message y ai_usage_today son SECURITY DEFINER y las puede llamar una sesión iniciada:
---   es intencionado. Solo cuentan o devuelven mensajes de la propia persona, y devolver exige el identificador de
---   reserva que únicamente recibe el servidor.
+--   es intencionado. Solo cuentan o devuelven mensajes de la propia persona. Cualquiera con sesión puede llamar a
+--   consume_ai_message directamente, pero eso solo gasta su propio cupo; devolver exige un identificador de reserva,
+--   así que no permite recuperar más mensajes de los gastados.
 
 -- Conversaciones: una fila por chat.
 create table public.conversations (

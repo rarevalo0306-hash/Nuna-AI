@@ -293,9 +293,10 @@ function setSyncProblem(problem) {
 // Errors that retrying cannot fix: a conversation over the size limit, or the account's conversation limit.
 const permanentSyncError = error => ['23514', '22001', 'P0001'].includes(String(error?.code || ''))
 function permanentSyncText(error) {
-  return /conversation_limit/.test(String(error?.message || ''))
-    ? authText('Tu cuenta llegó al máximo de 2000 conversaciones guardadas. Borra algunas para guardar las nuevas.', 'Your account reached the limit of 2000 saved conversations. Delete some to save new ones.')
-    : authText('Una conversación es demasiado larga para guardarla en tu cuenta. Empieza un chat nuevo.', 'A conversation is too long to save to your account. Start a new chat.')
+  const m = String(error?.message || '')
+  if (/conversation_limit/.test(m)) return authText('Tu cuenta llegó al máximo de 2000 conversaciones guardadas. Borra algunas para guardar las nuevas.', 'Your account reached the limit of 2000 saved conversations. Delete some to save new ones.')
+  if (/storage_limit/.test(m)) return authText('Tu cuenta llegó al máximo de 50 MB de conversaciones guardadas. Borra algunas para guardar las nuevas.', 'Your account reached the 50 MB limit for saved conversations. Delete some to save new ones.')
+  return authText('Una conversación es demasiado larga para guardarla en tu cuenta. Empieza un chat nuevo.', 'A conversation is too long to save to your account. Start a new chat.')
 }
 function queueSync(delay = 400) {
   if (!cloudMode()) return

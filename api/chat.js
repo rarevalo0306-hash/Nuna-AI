@@ -46,6 +46,13 @@ async function listProviderModels(provider, key) {
   }
 }
 
+// Only PostgREST's JWT errors (PGRST30x) mean the person's session is bad; any other 401/403 (a wrong publishable key,
+// a missing grant) is a server misconfiguration and must not send people into a login loop.
+const sessionRejected = (status, data) => status === 401 && /^PGRST30\d$/.test(String(data?.code || ''));
+
+// A request that never reached the provider was not billed, so its message can be given back.
+const notSent = error => ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT'].includes(error?.cause?.code);
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   // Log only the error code and provider so failures can be diagnosed in Vercel logs without exposing secrets or message content.
@@ -75,7 +82,7 @@ module.exports = async function handler(req, res) {
     let usage = null;
     if (session) {
       const { status, data } = await supabaseRpc('ai_usage_today', session);
-      if (status === 401 || status === 403) return fail(401, 'session_expired');
+      if (sessionRejected(status, data)) return fail(401, 'session_expired');
       if (status !== 200 || !Number.isInteger(data)) return fail(503, 'accounts_unavailable');
       usage = { used: data, limit: dailyLimit() };
     }
@@ -90,7 +97,8 @@ module.exports = async function handler(req, res) {
   const key = config.key[provider];
   const model = config.model[provider];
   if (!key) return fail(503, 'provider_key_missing', provider);
-  if (!model) return fail(503, 'provider_model_missing', provider, { available: await listProviderModels(provider, key) });
+  // Model lists and IDs are configuration details for the owner; accounts only learn that the model is missing.
+  if (!model) return fail(503, 'provider_model_missing', provider, code ? { available: await listProviderModels(provider, key) } : {});
   const messages = body?.messages;
   if (!Array.isArray(messages) || !messages.length || messages.length > 30 ||
       messages.some(m => !m || !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string' || !m.content.trim() || m.content.length > 12000) ||
@@ -102,8 +110,10 @@ module.exports = async function handler(req, res) {
   // If the provider then fails, the message is given back.
   let usage = null, reservation = null;
   if (session) {
-    const { status, data } = await supabaseRpc('consume_ai_message', session, { p_limit: dailyLimit() });
-    if (status === 401 || status === 403) return fail(401, 'session_expired');
+    const limit = dailyLimit();
+    if (limit === 0) return fail(503, 'accounts_paused');
+    const { status, data } = await supabaseRpc('consume_ai_message', session, { p_limit: limit });
+    if (sessionRejected(status, data)) return fail(401, 'session_expired');
     const row = Array.isArray(data) ? data[0] : null;
     if (status !== 200 || !row || typeof row.ok !== 'boolean') return fail(503, 'accounts_unavailable');
     usage = { used: row.used_today, limit: row.day_limit };
@@ -112,10 +122,12 @@ module.exports = async function handler(req, res) {
   }
   const refund = async () => {
     if (!reservation) return;
-    const { status, data } = await supabaseRpc('refund_ai_message', session, { p_reservation: reservation });
+    let result = await supabaseRpc('refund_ai_message', session, { p_reservation: reservation });
+    if (result.status !== 200) result = await supabaseRpc('refund_ai_message', session, { p_reservation: reservation });
     reservation = null;
-    if (status === 200 && data === true) usage = { ...usage, used: Math.max(usage.used - 1, 0) };
+    if (result.status === 200 && result.data === true) usage = { ...usage, used: Math.max(usage.used - 1, 0) };
   };
+  let response = null;
   try {
     const instructions = 'You are NUNA AI, a helpful assistant. Reply in the language of the user. Never claim to perform actions that have not been performed.';
     const isAnthropic = provider === 'anthropic';
@@ -128,7 +140,7 @@ module.exports = async function handler(req, res) {
     const isDeepSeek = Boolean(chatCompletionsUrl);
     const isGemini = provider === 'gemini';
     // Newer Gemini models think before answering and that thinking counts toward maxOutputTokens, so they get room for both.
-    const response = await fetch(isGemini ? `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent` : isAnthropic ? 'https://api.anthropic.com/v1/messages' : isDeepSeek ? chatCompletionsUrl : 'https://api.openai.com/v1/responses', {
+    response = await fetch(isGemini ? `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent` : isAnthropic ? 'https://api.anthropic.com/v1/messages' : isDeepSeek ? chatCompletionsUrl : 'https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: isGemini ? { 'x-goog-api-key': key, 'Content-Type': 'application/json' } : isAnthropic
         ? { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json', ...(claudeAdaptive ? { 'anthropic-beta': 'server-side-fallback-2026-07-01' } : {}) }
@@ -147,8 +159,9 @@ module.exports = async function handler(req, res) {
       // OpenAI's Responses API and DeepSeek report an unknown model as a 400; read the body only to recognize that case (never logged or returned).
       const body = response.status === 400 ? await response.text().catch(() => '') : '';
       const modelMissing = response.status === 404 || /model_not_found|model[^.]{0,60}(not exist|does not exist|not found)/i.test(body);
-      const extra = modelMissing ? { model, available: await listProviderModels(provider, key) } : {};
+      // The provider refused the request, so it produced nothing to bill: give the message back first.
       await refund();
+      const extra = modelMissing && code ? { model, available: await listProviderModels(provider, key) } : {};
       if (usage) extra.usage = usage;
       return fail(response.status === 429 ? 429 : 502, modelMissing ? 'provider_model' : errors[response.status] || 'provider_error', provider, extra);
     }
@@ -171,7 +184,9 @@ module.exports = async function handler(req, res) {
     }
     return res.status(200).json({ text, model: data.model || model, provider, usage });
   } catch (error) {
-    await refund();
+    // A timeout or a dropped connection may come after the provider already generated (and billed) the reply,
+    // so only a request that never left is given back. Otherwise a slow request would be a free one.
+    if (!response && notSent(error)) await refund();
     return fail(502, error.name === 'TimeoutError' ? 'provider_timeout' : 'provider_error', provider, usage ? { usage } : {});
   }
 };
