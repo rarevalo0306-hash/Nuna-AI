@@ -1,5 +1,5 @@
 const { timingSafeEqual } = require('node:crypto');
-const { isAdminSession } = require('./_supabase');
+const { verifiedSession } = require('./_supabase');
 const env = name => (process.env[name] || '').trim();
 // Initial voice pilot is available only to the administrator: the access code or an administrator account.
 // Ordinary accounts cannot mint paid voice sessions until a server-side audio budget is added.
@@ -11,7 +11,7 @@ module.exports = async function handler(req, res) {
   const a = Buffer.from(expected), b = Buffer.from(supplied);
   const codeOk = expected.length >= 16 && a.length === b.length && timingSafeEqual(a, b);
   const bearer = (/^Bearer\s+([\w.-]{20,4096})$/i.exec(String(req.headers.authorization || '')) || [])[1] || '';
-  if (!codeOk && !(bearer && await isAdminSession(bearer))) return fail(403, 'voice_test_only');
+  if (!codeOk && !(bearer && await verifiedSession(bearer))) return fail(401, 'login_required');
   const key = env('OPENAI_API_KEY');
   if (!key) return fail(503, 'provider_key_missing');
   const model = env('NUNA_VOICE_MODEL') || 'gpt-realtime-2.1';

@@ -62,4 +62,14 @@ async function isAdminSession(token) {
   }
 }
 
-module.exports = { supabaseConfig, dailyLimit, supabaseRpc, isAdminSession };
+async function verifiedSession(token) {
+  const config=supabaseConfig();
+  if(!token||!config)return null;
+  try {
+    const response=await fetch(`${config.url}/auth/v1/user`,{headers:{apikey:config.key,Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(8000)});
+    if(!response.ok)return null;
+    const user=await response.json();
+    return user?.id && user.email_confirmed_at ? user : null;
+  } catch {return null;}
+}
+module.exports = { supabaseConfig, dailyLimit, supabaseRpc, isAdminSession, verifiedSession };

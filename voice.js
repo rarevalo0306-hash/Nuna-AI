@@ -123,11 +123,12 @@ function renderVoice() {
   voiceEnd.setAttribute('aria-label', endLabel); voiceEnd.title = endLabel;
   voiceEnd.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   voiceStatus.textContent = voiceMessage || vText('Lista para probar · micrófono apagado', 'Ready to test · microphone off');
-  voiceNote.textContent = vText('Prueba para administradores. Tu audio se procesa para responderte y las transcripciones se guardan en este chat. La voz es generada por IA. Este navegador termina la prueba a los 5 minutos; el audio tiene costo.', 'Administrator pilot. Your audio is processed to respond and transcripts are saved in this chat. The voice is AI generated. This browser ends the test after 5 minutes; audio has a cost.');
+  voiceNote.textContent = vText('Tu audio se procesa para responderte y las transcripciones se guardan en este chat. La voz es generada por IA. Este navegador termina la prueba a los 5 minutos; el audio tiene costo.', 'Your audio is processed to respond and transcripts are saved in this chat. The voice is AI generated. This browser ends the test after 5 minutes; audio has a cost.');
 }
 function voiceSetStatus(es, en) { voiceMessage = vText(es, en); renderVoice(); }
 function voiceFailure(error) {
   const messages = {
+    login_required:['Inicia sesión en NUNA para usar la voz.', 'Sign in to NUNA to use voice.'],
     voice_test_only:['La voz está disponible para la cuenta de administrador. Comprueba que iniciaste sesión con esa cuenta; también puedes usar tu código de administrador.', 'Voice is available to the administrator account. Check that you signed in with that account; you can also use your administrator code.'],
     provider_key_missing:['Falta configurar el servicio de voz.', 'The voice service is not configured.'],
     provider_model_missing:['Tu clave no tiene acceso al modelo de voz configurado.', 'Your key cannot access the configured voice model.'],
