@@ -10,39 +10,39 @@ Desde `/workspace/Nuna-AI`:
 python -m http.server 3000 --bind 0.0.0.0
 ```
 
-Abre el servidor en un navegador. También puedes abrir `index.html` directamente. No requiere claves, APIs, pagos ni instalación de paquetes.
+Abre el servidor en un navegador para revisar la interfaz. El chat necesita la función `/api/chat` de Vercel (con sus variables de entorno), así que en local solo verás el aviso de error de conexión al enviar.
 
 ## Fluidez
 
 El botón circular junto a Enviar abre el concepto Fluidez integrado. La ventana hereda el tema e idioma del chat. Permite probar ocho estados visuales o reproducir una secuencia de demostración. Cierra con la X o Escape para volver al chat. El micrófono permanece apagado; no se solicita acceso ni se captura audio. El archivo original adjunto se conserva sin cambios.
 
-## Revisión del mockup
+## Pantallas
 
 Configuración se abre en pantalla completa desde Cuenta personal → ⋯. Incluye Perfil, Seguridad, Voz, Almacenamiento, Uso, Facturación, Control de datos, Plugins, Referidos, Socials, Work, Modelos y General. Seguridad, consumo, publicidad e integraciones muestran estados de demostración; no constituyen servicios reales. Las preferencias y borradores se guardan localmente. La revisión final pasó 60 comprobaciones automatizadas en Chromium de escritorio y móvil. La cámara física, Safari y Firefox requieren comprobación adicional.
 
-## Prueba privada de OpenAI en Vercel
+## OpenAI en Vercel
 
 `api/chat.js` es una función de servidor sin dependencias. Configura en Vercel (nunca en el HTML):
 
 - `OPENAI_API_KEY`: clave de API del proyecto OpenAI. La suscripción de ChatGPT no sustituye el acceso ni el crédito de API.
-- `NUNA_ACCESS_CODE`: código de prueba privado y aleatorio de al menos 16 caracteres. No es una contraseña de usuario; mantiene restringida esta prueba mientras no haya autenticación real.
+- `NUNA_ACCESS_CODE`: código de acceso aleatorio de al menos 16 caracteres. No es una contraseña de usuario; restringe el uso de la IA mientras no haya cuentas reales.
 - `NUNA_OPENAI_MODEL`: opcional; por defecto `gpt-4.1-mini`. Debe ser un modelo disponible para tu cuenta y compatible con Responses API.
 
-Después de cambiar variables, vuelve a desplegar. Usa «Probar OpenAI» e introduce solamente el código privado. La clave de API permanece en servidor. El código de prueba permanece en memoria de la página y se pierde al recargar. El endpoint exige este código, admite solo texto y limita tamaño de conversación y salida. No habilita seguridad de cuentas, límites globales de gasto ni autenticación por usuario. Usa límites de gasto del proveedor y restringe quién recibe el código. El modo normal permanece simulado; un error de API nunca se sustituye por una respuesta ficticia.
+Después de cambiar variables, vuelve a desplegar. Elige el proveedor en la cabecera y envía un mensaje: la primera vez se pide el código de acceso, que se recuerda en el dispositivo salvo que desmarques «Recordar en este dispositivo» (marcado por defecto). La clave de API permanece en el servidor. No hay modo de prueba ni respuestas simuladas: si la llamada al proveedor falla, se muestra el motivo y el mensaje vuelve al cuadro de texto.
 
 El servidor pide `store: false` en Responses API. Esto no equivale a una garantía de retención cero por parte del proveedor.
 
 ## Anthropic
 
-La prueba privada también admite Anthropic Messages API. En Vercel añade `ANTHROPIC_API_KEY` y `NUNA_ANTHROPIC_MODEL` (ID exacto de un modelo disponible en tu cuenta Anthropic). Se usa el mismo `NUNA_ACCESS_CODE`. El modelo Anthropic se configura explícitamente, sin asumir una versión disponible. Selecciona «Claude · Anthropic», activa «Probar IA» y envía texto. No envíes adjuntos: esta integración todavía es solo de texto. Las claves se mantienen en servidor. No se promete retención cero de datos por el proveedor.
+NUNA admite Anthropic Messages API. En Vercel añade `ANTHROPIC_API_KEY` y `NUNA_ANTHROPIC_MODEL` (ID exacto de un modelo disponible en tu cuenta Anthropic). Se usa el mismo `NUNA_ACCESS_CODE`. El modelo Anthropic se configura explícitamente, sin asumir una versión disponible. Selecciona «Claude · Anthropic» en la cabecera y envía texto. No envíes adjuntos: esta integración todavía es solo de texto. Las claves se mantienen en servidor. No se promete retención cero de datos por el proveedor.
 
 ## DeepSeek
 
-La prueba privada admite DeepSeek Chat Completions API. Configura `DEEPSEEK_API_KEY` en Vercel como secreto y opcionalmente `NUNA_DEEPSEEK_MODEL` (por defecto `deepseek-chat`). Se reutiliza `NUNA_ACCESS_CODE`. Selecciona DeepSeek y activa «Probar IA». Se admite solo texto. Verifica acceso y crédito en la cuenta del proveedor; una prueba simulada no demuestra disponibilidad real.
+NUNA admite DeepSeek Chat Completions API. Configura `DEEPSEEK_API_KEY` en Vercel como secreto y opcionalmente `NUNA_DEEPSEEK_MODEL` (por defecto `deepseek-chat`). Se reutiliza `NUNA_ACCESS_CODE`. Selecciona DeepSeek en la cabecera y envía un mensaje. Se admite solo texto. Verifica acceso y crédito en la cuenta del proveedor.
 
 ## Google Gemini
 
-Configura `GEMINI_API_KEY` como secreto en Vercel. `NUNA_GEMINI_MODEL` es opcional; por defecto `gemini-flash-latest`, el alias de Google al Flash estable más reciente (`gemini-2.5-flash` ya no está disponible para claves nuevas). Se usa GenerateContent API con clave en cabecera, historial user/model y límite de salida. Selecciona Gemini y activa «Probar IA». Se reutiliza `NUNA_ACCESS_CODE`. La disponibilidad y cuota del modelo deben verificarse con tu cuenta; solo se ha probado el recorrido con respuestas simuladas.
+Configura `GEMINI_API_KEY` como secreto en Vercel. `NUNA_GEMINI_MODEL` es opcional; por defecto `gemini-flash-latest`, el alias de Google al Flash estable más reciente (`gemini-2.5-flash` ya no está disponible para claves nuevas). Se usa GenerateContent API con clave en cabecera, historial user/model y límite de salida. Selecciona Gemini en la cabecera y envía un mensaje. Se reutiliza `NUNA_ACCESS_CODE`.
 
 ## Grok (xAI)
 
@@ -79,11 +79,11 @@ El selector de la cabecera abre un menú para cambiar de modelo sin entrar en Co
 
 ## Modelo no encontrado o sin configurar
 
-Si el proveedor responde que no encuentra el modelo (404), o si falta su variable de modelo, `/api/chat` pregunta al proveedor qué modelos admite la clave y devuelve hasta 40 nombres (sin embeddings, audio ni imágenes). La interfaz los muestra junto a la variable que hay que definir en Vercel, por ejemplo `NUNA_GEMINI_MODEL`, y recuerda volver a desplegar. Los nombres también quedan en la línea `nuna_chat_error` del registro. Nunca se devuelven claves.
+Si el proveedor responde que no encuentra el modelo (404, o un 400 de modelo inexistente en OpenAI y DeepSeek), o si falta su variable de modelo, `/api/chat` pregunta al proveedor qué modelos admite la clave y devuelve hasta 40 nombres (sin embeddings, audio ni imágenes). La interfaz los muestra junto a la variable que hay que definir en Vercel, por ejemplo `NUNA_GEMINI_MODEL`, y recuerda volver a desplegar. Los nombres también quedan en la línea `nuna_chat_error` del registro. Nunca se devuelven claves.
 
 ## Chat real y código de acceso
 
-No hay modo de prueba ni respuestas simuladas: cada mensaje va al proveedor elegido en la cabecera. Mientras NUNA no tenga cuentas de usuario, `/api/chat` exige el código de acceso (`NUNA_ACCESS_CODE`). Se pide la primera vez que se envía un mensaje y, si se marca «Recordar en este dispositivo», se guarda en el navegador (`localStorage`). Configuración → Modelos permite olvidarlo. Si el código no coincide, se borra y se vuelve a pedir; el mensaje escrito se conserva.
+No hay modo de prueba ni respuestas simuladas: cada mensaje va al proveedor elegido en la cabecera. Mientras NUNA no tenga cuentas de usuario, `/api/chat` exige el código de acceso (`NUNA_ACCESS_CODE`). Se pide la primera vez que se envía un mensaje y con «Recordar en este dispositivo» (marcado por defecto) se guarda en el navegador (`localStorage`). Configuración → Modelos permite olvidarlo. Si el código no coincide, se borra y se vuelve a pedir; el mensaje escrito se conserva.
 
 Las funciones que aún no están conectadas (cuentas, pagos, voz, redes, plugins) siguen indicándolo en sus pantallas.
 

@@ -8,10 +8,12 @@ function authorized(value, expected) {
 
 const PROVIDERS = ['openai', 'anthropic', 'deepseek', 'gemini', 'grok', 'qwen'];
 
+// Trim so a pasted space or newline in Vercel does not break a key header, a model ID or a URL.
+const env = name => (process.env[name] || '').trim();
+const qwenBase = () => (env('NUNA_QWEN_BASE_URL') || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1').replace(/\/+$/, '');
+
 // Read at request time so a redeploy with new variables is picked up.
 function providerConfig() {
-  // Trim so a pasted space or newline in Vercel does not break a key header or a model ID.
-  const env = name => (process.env[name] || '').trim();
   return {
     key: { openai: env('OPENAI_API_KEY'), anthropic: env('ANTHROPIC_API_KEY'), deepseek: env('DEEPSEEK_API_KEY'), gemini: env('GEMINI_API_KEY'), grok: env('XAI_API_KEY'), qwen: env('DASHSCOPE_API_KEY') },
     model: { openai: env('NUNA_OPENAI_MODEL') || 'gpt-4.1-mini', anthropic: env('NUNA_ANTHROPIC_MODEL'), deepseek: env('NUNA_DEEPSEEK_MODEL') || 'deepseek-chat', gemini: env('NUNA_GEMINI_MODEL') || 'gemini-flash-latest', grok: env('NUNA_GROK_MODEL'), qwen: env('NUNA_QWEN_MODEL') || 'qwen-plus' }
@@ -21,8 +23,7 @@ function providerConfig() {
 // Ask the provider which models this key can use, so a "model not found" error can name real options. Returns names only.
 async function listProviderModels(provider, key) {
   try {
-    const qwenBase = (process.env.NUNA_QWEN_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1').replace(/\/+$/, '');
-    const url = { gemini: 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', openai: 'https://api.openai.com/v1/models', anthropic: 'https://api.anthropic.com/v1/models?limit=100', deepseek: 'https://api.deepseek.com/models', grok: 'https://api.x.ai/v1/models', qwen: `${qwenBase}/models` }[provider];
+    const url = { gemini: 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', openai: 'https://api.openai.com/v1/models', anthropic: 'https://api.anthropic.com/v1/models?limit=100', deepseek: 'https://api.deepseek.com/models', grok: 'https://api.x.ai/v1/models', qwen: `${qwenBase()}/models` }[provider];
     const headers = provider === 'gemini' ? { 'x-goog-api-key': key } : provider === 'anthropic' ? { 'x-api-key': key, 'anthropic-version': '2023-06-01' } : { Authorization: `Bearer ${key}` };
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
     if (!response.ok) return [];
@@ -30,11 +31,12 @@ async function listProviderModels(provider, key) {
     const names = provider === 'gemini'
       ? (data.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => String(m.name || '').replace(/^models\//, ''))
       : (data.data || []).map(m => String(m.id || ''));
-    // Leave out models that cannot hold a text chat (embeddings, audio, images, moderation).
-    // Gemma rejects the system instruction this handler sends; legacy completion and agent-only models cannot hold this chat.
-    // Only each provider's own chat families, minus models that cannot hold this text chat.
-    const family = { gemini: /^gemini-/i, anthropic: /^claude-/i, deepseek: /^deepseek-/i, grok: /^grok-/i, openai: /^(gpt-|o\d|chatgpt-)/i, qwen: /^(qwen|qwq)/i }[provider];
-    const usable = [...new Set(names)].filter(n => /^[\w.:\/-]{1,100}$/.test(n) && family.test(n) && !/-vl|omni|asr|codex|embed|tts|whisper|dall-e|moderation|audio|realtime|transcribe|image|imagen|veo|search|aqa|gemma|davinci|babbage|instruct|sora|computer-use|deep-research/i.test(n));
+    // Only each provider's own chat families, minus models this text-only, non-streaming chat cannot use:
+    // embeddings, audio, images, video, translation, agent-only, legacy completion, and Qwen's streaming-only models.
+    const family = { gemini: /^gemini-/i, anthropic: /^claude-/i, deepseek: /^deepseek-/i, grok: /^grok-/i, openai: /^(gpt-|o\d|chatgpt-)/i, qwen: /^qwen/i }[provider];
+    const common = /embed|tts|whisper|dall-e|moderation|audio|realtime|transcribe|image|imagen|veo|search|aqa|asr|-vl|omni|computer-use|deep-research|robotics|nano-banana|lyria|live/i;
+    const specific = { openai: /instruct|davinci|babbage|sora|codex/i, qwen: /-mt-|thinking|^qwq|^qwen3-\d+b(-a\d+b)?$/i }[provider];
+    const usable = [...new Set(names)].filter(n => /^[\w.:\/-]{1,100}$/.test(n) && family.test(n) && !common.test(n) && !(specific && specific.test(n)));
     // Put the usual chat families first so the shortened list in the UI shows them.
     const rank = n => (/(^|[-_.])(flash|mini|haiku|chat|turbo|plus)([-_.]|$)/i.test(n) ? 0 : /pro|sonnet|opus|gpt|grok|qwen|deepseek|claude|gemini/i.test(n) ? 1 : 2) + (/preview|exp|latest|\d{4}-\d{2}-\d{2}|-\d{3}$/i.test(n) ? 0.5 : 0);
     return usable.sort((a, b) => rank(a) - rank(b)).slice(0, 40);
@@ -88,7 +90,7 @@ module.exports = async function handler(req, res) {
     const claudeAdaptive = isAnthropic && /^claude-(opus-5|fable-5|sonnet-5-5)/.test(model);
     const claudeEffort = ['low', 'medium', 'high', 'xhigh', 'max'].includes(process.env.NUNA_ANTHROPIC_EFFORT) ? process.env.NUNA_ANTHROPIC_EFFORT : 'low';
     // DeepSeek, Grok (xAI) and Qwen (DashScope compatible mode) share the Chat Completions format.
-    const chatCompletionsUrl = { deepseek: 'https://api.deepseek.com/chat/completions', grok: 'https://api.x.ai/v1/chat/completions', qwen: `${(process.env.NUNA_QWEN_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1').replace(/\/+$/, '')}/chat/completions` }[provider];
+    const chatCompletionsUrl = { deepseek: 'https://api.deepseek.com/chat/completions', grok: 'https://api.x.ai/v1/chat/completions', qwen: `${qwenBase()}/chat/completions` }[provider];
     const isDeepSeek = Boolean(chatCompletionsUrl);
     const isGemini = provider === 'gemini';
     // Newer Gemini models think before answering and that thinking counts toward maxOutputTokens, so they get room for both.
@@ -107,8 +109,11 @@ module.exports = async function handler(req, res) {
     });
     if (!response.ok) {
       const errors = { 400: 'provider_request', 401: 'provider_auth', 403: 'provider_permission', 404: 'provider_model', 429: 'provider_limit' };
-      const extra = response.status === 404 ? { model, available: await listProviderModels(provider, key) } : {};
-      return fail(response.status === 429 ? 429 : 502, errors[response.status] || 'provider_error', provider, extra);
+      // OpenAI's Responses API and DeepSeek report an unknown model as a 400; read the body only to recognize that case (never logged or returned).
+      const body = response.status === 400 ? await response.text().catch(() => '') : '';
+      const modelMissing = response.status === 404 || /model_not_found|model[^.]{0,60}(not exist|does not exist|not found)/i.test(body);
+      const extra = modelMissing ? { model, available: await listProviderModels(provider, key) } : {};
+      return fail(response.status === 429 ? 429 : 502, modelMissing ? 'provider_model' : errors[response.status] || 'provider_error', provider, extra);
     }
     const data = await response.json();
     const text = (isGemini
