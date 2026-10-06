@@ -103,7 +103,8 @@ module.exports = async function handler(req, res) {
         ? { systemInstruction: { parts: [{ text: instructions }] }, contents: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })), generationConfig: model.startsWith('gemini-2.5-flash') ? { maxOutputTokens: 1200, thinkingConfig: { thinkingBudget: 0 } } : { maxOutputTokens: 8192 } }
         : isAnthropic
         ? { model, system: instructions, messages, max_tokens: 16000, ...(claudeAdaptive ? { output_config: { effort: claudeEffort }, fallbacks: 'default' } : {}) }
-        : isDeepSeek ? { model, messages: [{ role: 'system', content: instructions }, ...messages], max_tokens: 1200, stream: false }
+        // Grok 4.x models may reason before answering and that counts toward max_tokens, so they get room for both.
+        : isDeepSeek ? { model, messages: [{ role: 'system', content: instructions }, ...messages], max_tokens: provider === 'grok' ? 8192 : 1200, stream: false }
         : { model, instructions, input: messages, max_output_tokens: 1200, store: false }),
       signal: AbortSignal.timeout(45000)
     });
@@ -126,7 +127,7 @@ module.exports = async function handler(req, res) {
       .join('\n').trim();
     if (isAnthropic && data.stop_reason === 'refusal') return fail(502, 'provider_blocked', provider);
     if (!text) {
-      const finish = isGemini ? data.candidates?.[0]?.finishReason : null;
+      const finish = isGemini ? data.candidates?.[0]?.finishReason : isDeepSeek && data.choices?.[0]?.finish_reason === 'length' ? 'MAX_TOKENS' : null;
       const error = data.promptFeedback?.blockReason || finish === 'SAFETY' ? 'provider_blocked' : finish === 'MAX_TOKENS' ? 'provider_output_limit' : 'empty_response';
       return fail(502, error, provider);
     }

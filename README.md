@@ -46,11 +46,11 @@ Configura `GEMINI_API_KEY` como secreto en Vercel. `NUNA_GEMINI_MODEL` es opcion
 
 ## Grok (xAI)
 
-Configura `XAI_API_KEY` como secreto y `NUNA_GROK_MODEL` con el ID exacto de un modelo disponible en tu cuenta xAI (no se asume ninguno). Usa Chat Completions de xAI. Se reutiliza `NUNA_ACCESS_CODE`. Solo texto. Pendiente de verificar con una respuesta real.
+Configura `XAI_API_KEY` como secreto y `NUNA_GROK_MODEL` con el ID exacto de un modelo disponible en tu cuenta xAI (no se asume ninguno; en producción, `grok-4.7`). Grok recibe `max_tokens` 8192 porque los modelos 4.x pueden razonar antes de responder. Usa Chat Completions de xAI. Se reutiliza `NUNA_ACCESS_CODE`. Solo texto. 
 
 ## Qwen (Alibaba Cloud)
 
-Configura `DASHSCOPE_API_KEY` como secreto. `NUNA_QWEN_MODEL` es opcional (por defecto `qwen-plus`). `NUNA_QWEN_BASE_URL` apunta por defecto al endpoint internacional compatible con OpenAI; para China continental usa `https://dashscope.aliyuncs.com/compatible-mode/v1`. Solo texto. Pendiente de verificar con una respuesta real.
+Configura `DASHSCOPE_API_KEY` como secreto. `NUNA_QWEN_MODEL` es opcional (por defecto `qwen-plus`). `NUNA_QWEN_BASE_URL` apunta por defecto al endpoint internacional compatible con OpenAI; para China continental usa `https://dashscope.aliyuncs.com/compatible-mode/v1`. Solo texto. Verificado con respuesta real en producción.
 
 ## Diagnóstico
 
