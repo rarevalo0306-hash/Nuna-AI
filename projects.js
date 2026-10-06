@@ -110,11 +110,11 @@ function openProjectCreator(){
   const description=document.createElement('textarea');description.rows=3;description.maxLength=1000;description.required=true;description.placeholder=es?'Describe tu objetivo: programación, edición de fotos, edición de video…':'Describe your goal: coding, photo editing, video editing…';descriptionLabel.append(description);
   const actions=document.createElement('div');const cancel=document.createElement('button');cancel.type='button';cancel.textContent=es?'Cancelar':'Cancel';
   const create=document.createElement('button');create.type='submit';create.className='project-create-submit';create.textContent=es?'Crear':'Create';create.disabled=true;
-  const validate=()=>{create.disabled=!input.value.trim()||!description.value.trim()||!selectedTasks.size;};input.oninput=description.oninput=validate;
+  const validate=()=>{create.disabled=!input.value.trim()||!selectedTasks.size;};input.oninput=description.oninput=validate;
   const close=()=>{form.remove();document.getElementById('project-add').setAttribute('aria-expanded','false');document.getElementById('project-add').focus();};
   cancel.onclick=close;form.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close();}};
-  form.onsubmit=e=>{e.preventDefault();const name=input.value.trim(),purpose=description.value.trim();if(!name||!purpose||!selectedTasks.size)return;projects.push({id:crypto.randomUUID(),name:Array.from(name).slice(0,80).join(''),description:Array.from(purpose).slice(0,1000).join(''),tasks:[...selectedTasks]});currentProject=projects[projects.length-1].id;expandedProjects.add(currentProject);currentSection=null;active=null;close();persistProjects();render();};
-  actions.append(cancel,create);form.append(label,taskGroup,descriptionLabel,actions);document.getElementById('project-list').before(form);document.getElementById('project-add').setAttribute('aria-expanded','true');input.focus();
+  form.onsubmit=e=>{e.preventDefault();const name=input.value.trim(),purpose=description.value.trim();if(!name||!selectedTasks.size)return;projects.push({id:crypto.randomUUID(),name:Array.from(name).slice(0,80).join(''),description:Array.from(purpose).slice(0,1000).join(''),tasks:[...selectedTasks]});currentProject=projects[projects.length-1].id;expandedProjects.add(currentProject);currentSection=null;active=null;close();persistProjects();render();};
+  actions.append(cancel,create);form.append(label,taskGroup,actions);document.getElementById('project-list').before(form);document.getElementById('project-add').setAttribute('aria-expanded','true');input.focus();
 }
 const projectCreateStyle=document.createElement('style');projectCreateStyle.textContent=`
 .project-create-form{padding:12px;margin:8px 0;background:var(--card);border:1px solid var(--border);border-radius:12px}
