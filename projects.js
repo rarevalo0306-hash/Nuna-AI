@@ -221,3 +221,5 @@ const adStyle=document.createElement('style');adStyle.textContent=`
 `;document.head.append(adStyle);
 
 const profileMenu=document.getElementById('account-menu');profileMenu.prepend(document.getElementById('theme'),document.getElementById('language'));
+
+const headerSimplifyStyle=document.createElement('style');headerSimplifyStyle.textContent='#auth-header,#new-top{display:none!important}';document.head.append(headerSimplifyStyle);
