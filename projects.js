@@ -219,3 +219,11 @@ const adStyle=document.createElement('style');adStyle.textContent=`
 .sidebar-ad-art svg{width:39px;opacity:.6}.sidebar-ad strong{font-size:12px;font-weight:600}.sidebar-ad p{font-size:11px;color:var(--muted);line-height:1.4;margin:5px 0 7px}.sidebar-ad-available{font-size:10px;color:var(--accent)}
 @media(max-height:650px){.sidebar-ad-art{height:34px}.sidebar-ad p{display:none}}
 `;document.head.append(adStyle);
+
+const profileTheme=document.getElementById('theme'),profileLanguage=document.getElementById('language'),profileMore=document.getElementById('account-toggle');profileMore.before(profileTheme,profileLanguage);profileTheme.classList.add('profile-quick-control');profileLanguage.classList.add('profile-quick-control');profileTheme.title='Cambiar tema';profileLanguage.title='Cambiar idioma';
+const profileControlsStyle=document.createElement('style');profileControlsStyle.textContent=`
+.profile{display:grid;grid-template-columns:28px minmax(0,1fr) 26px 26px 28px;gap:4px;padding-left:2px;padding-right:2px}
+.profile .avatar{width:28px;height:28px}.profile>div:nth-child(2){min-width:0}.profile strong,.profile small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profile strong{font-size:11px}
+.profile .profile-quick-control{width:26px;height:32px;padding:0;min-width:0;font-size:0!important;text-align:center;color:var(--muted);border-radius:8px}
+.profile #theme:before{content:'☀';font-size:17px}.profile #language:before{content:'◎';font-size:19px}.profile .account-more{width:28px;margin:0}
+`;document.head.append(profileControlsStyle);
