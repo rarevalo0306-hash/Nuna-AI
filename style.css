@@ -133,3 +133,42 @@ html,body{max-width:100%;overflow-x:hidden}main,#scroll-area{min-height:0}
  #sidebar .account-menu{max-height:calc(100dvh - 140px);overflow:auto}
  body.menu-open{overflow:hidden}
 }
+
+/* Phone workspace: compact chat, full-width settings, comfortable touch controls. */
+@media(max-width:760px){
+ .app{height:100dvh;overflow:hidden}
+ main>header{height:calc(56px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top)}
+ #welcome{padding:20px 18px 18px}
+ #welcome .welcome-mark{width:76px;height:54px;margin-bottom:14px}
+ #welcome .welcome-mark svg{width:68px}
+ #welcome h1{font-size:26px;line-height:1.2;margin:12px 0}
+ #welcome>p{font-size:14px;line-height:1.5;margin:0 0 20px}
+ #welcome .eyebrow{font-size:9px;letter-spacing:1.5px}
+ #suggestions{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ #suggestions .suggestion{min-height:84px;padding:12px;border-radius:14px}
+ #suggestions .symbol{font-size:17px;margin-bottom:8px}
+ #suggestions small{display:none}
+ .composer-area{padding:8px 12px max(10px,env(safe-area-inset-bottom));max-height:55dvh;overflow-y:auto}
+ #composer{padding:12px;border-radius:20px}
+ #prompt{max-height:100px;line-height:1.45}
+ .composer-controls{margin-top:8px;gap:8px}
+ .disclaimer{font-size:9px;line-height:1.35;margin-top:7px}
+ .location-offer{padding:10px!important;border-radius:14px!important}
+ .location-offer p{font-size:12px!important;margin:6px 0!important}
+ #messages{padding:16px 14px 24px}
+ .message{line-height:1.6;margin-bottom:22px}
+ .message.user{max-width:90%;padding:10px 14px}
+ #settings-dialog{width:100%;max-width:none;height:100dvh;max-height:none;padding:0;border-radius:0}
+ #settings-dialog .settings-head{height:calc(60px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 16px 0}
+ #settings-dialog .settings-layout{height:calc(100dvh - 60px - env(safe-area-inset-top));display:flex;flex-direction:column}
+ #settings-dialog .settings-tabs{flex-direction:row;flex-shrink:0;padding:8px 12px;gap:6px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--border);max-width:100%;-webkit-overflow-scrolling:touch}
+ #settings-dialog .settings-tabs button{white-space:nowrap;min-height:44px;padding:10px 12px;border-radius:12px}
+ #settings-dialog .settings-tabs button:last-child{margin:0;padding:10px 12px;border:0}
+ #settings-dialog .settings-panel{flex:1;min-height:0;width:100%;padding:20px 16px max(20px,env(safe-area-inset-bottom));overflow:auto}
+ #settings-dialog .settings-panel h3{font-size:22px;margin-bottom:18px}
+ #settings-dialog .settings-panel p{font-size:14px}
+ #settings-dialog button,#auth-dialog button{min-height:44px}
+ #sidebar .history-row .chat-delete,#sidebar .project-tree-heading .project-delete{width:40px;min-height:44px;opacity:1}
+ #sidebar .project-heading .project-add{min-width:44px;min-height:44px}
+}
+@media(max-width:760px) and (max-height:500px){#welcome .welcome-mark,#welcome>p,#suggestions,.disclaimer{display:none}.composer-area{max-height:65dvh}}
