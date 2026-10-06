@@ -57,12 +57,15 @@ body{--nuna-font-scale:1}body[data-font-size=small]{--nuna-font-scale:.9}body[da
 
 /* Ergonomía y accesibilidad: áreas táctiles, foco del compositor, borrar al pasar, muestras de voz */
 #attach-open,#voice-open,#send{width:40px;height:40px}
-.composer-area textarea:focus-visible{outline:none}
+.composer-area textarea:focus-visible{outline:2px solid transparent;outline-offset:2px}
+@media(forced-colors:active){.composer-area form:focus-within{outline:2px solid Highlight}}
 .composer-area form{transition:border-color .15s,box-shadow .15s}
 .composer-area form:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent),0 8px 32px #00182020}
 .history-row .chat-delete{width:32px;height:32px;padding:0;border-radius:50%}
 @media(hover:hover){.history-row .chat-delete{opacity:0;transition:opacity .15s}.history-row:hover .chat-delete,.history-row:focus-within .chat-delete,.history-row>button.active~.chat-delete{opacity:1}}
-.voice-option{position:relative}
+.voice-option{position:relative;flex-wrap:wrap}
+.voice-choice{display:flex;align-items:flex-start;gap:10px;flex:1 1 140px;min-width:0;cursor:pointer}
+.voice-options{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
 .voice-sample{margin-left:auto;align-self:center;flex:none;min-height:36px;padding:0 14px;border:1px solid var(--border);border-radius:18px;background:transparent;color:var(--accent);font-size:12px}
 .voice-sample:hover{background:var(--hover)}
 .voice-sample-status{min-height:1.4em;margin:12px 0 0;font-size:13px;color:var(--muted)}
