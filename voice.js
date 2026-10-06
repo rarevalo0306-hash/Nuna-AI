@@ -128,7 +128,7 @@ function renderVoice() {
 function voiceSetStatus(es, en) { voiceMessage = vText(es, en); renderVoice(); }
 function voiceFailure(error) {
   const messages = {
-    voice_test_only:['Esta prueba requiere tu código de administrador. Configúralo desde el acceso de administrador de NUNA.', 'This pilot requires your administrator code. Set it through NUNA administrator access.'],
+    voice_test_only:['La voz está disponible para la cuenta de administrador. Comprueba que iniciaste sesión con esa cuenta; también puedes usar tu código de administrador.', 'Voice is available to the administrator account. Check that you signed in with that account; you can also use your administrator code.'],
     provider_key_missing:['Falta configurar el servicio de voz.', 'The voice service is not configured.'],
     provider_model_missing:['Tu clave no tiene acceso al modelo de voz configurado.', 'Your key cannot access the configured voice model.'],
     provider_auth:['El servicio de voz rechazó el acceso. Revisa los permisos de la clave.', 'The voice service rejected access. Check key permissions.'],
@@ -172,6 +172,9 @@ const voiceAdapters = {
   openai: {
     async connect({signal, generation}) {
       const headers = await aiAuthHeaders();
+      // Always include the signed-in identity, even when a stored pilot code exists.
+      const sessionToken = await authAccessToken();
+      if(sessionToken) headers.Authorization='Bearer '+sessionToken;
       const check = await fetch('/api/voice', {headers, signal});
       const availability = await check.json();
       if (!check.ok) throw Object.assign(new Error('voice'), {code:availability.error});
