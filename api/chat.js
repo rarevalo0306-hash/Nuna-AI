@@ -10,9 +10,8 @@ module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
   const accessCode = process.env.NUNA_ACCESS_CODE;
-  if (!accessCode || accessCode.length < 16) {
-    return res.status(503).json({ error: 'not_configured' });
-  }
+  if (!accessCode) return res.status(503).json({ error: 'access_code_missing' });
+  if (accessCode.length < 16) return res.status(503).json({ error: 'access_code_short' });
   if (!authorized(req.headers['x-nuna-access-code'], accessCode)) {
     return res.status(401).json({ error: 'unauthorized' });
   }
@@ -24,7 +23,8 @@ module.exports = async function handler(req, res) {
   if (!['openai', 'anthropic', 'deepseek', 'gemini'].includes(provider)) return res.status(400).json({ error: 'unsupported_provider' });
   const key = { openai: process.env.OPENAI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY, deepseek: process.env.DEEPSEEK_API_KEY, gemini: process.env.GEMINI_API_KEY }[provider];
   const model = { openai: process.env.NUNA_OPENAI_MODEL || 'gpt-4.1-mini', anthropic: process.env.NUNA_ANTHROPIC_MODEL, deepseek: process.env.NUNA_DEEPSEEK_MODEL || 'deepseek-chat', gemini: process.env.NUNA_GEMINI_MODEL || 'gemini-2.5-flash' }[provider];
-  if (!key || !model) return res.status(503).json({ error: 'not_configured' });
+  if (!key) return res.status(503).json({ error: 'provider_key_missing', provider });
+  if (!model) return res.status(503).json({ error: 'provider_model_missing', provider });
   const messages = body?.messages;
   if (!Array.isArray(messages) || !messages.length || messages.length > 30 ||
       messages.some(m => !m || !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string' || !m.content.trim() || m.content.length > 12000) ||
