@@ -75,7 +75,7 @@ voiceStyle.textContent = `
 .voice-wave svg{width:64px;height:32px;stroke:currentColor;stroke-width:2.5;fill:none;stroke-linecap:round;animation:none;filter:none}
 .voice-wave .wave-base{opacity:.2}
 .voice-wave .voice-swimmer{stroke-width:3;transform-origin:center;transform-box:fill-box}
-.voice-actions .voice-swimmer{animation:nuna-swim 2s ease-in-out infinite}
+.voice-actions.speaking .voice-swimmer{animation:nuna-swim 2s ease-in-out infinite}
 @keyframes nuna-swim{0%,100%{translate:0 4px;rotate:-3deg}50%{translate:0 -5px;rotate:3deg}}
 .voice-wave .wave-flow{opacity:0;stroke-dasharray:22 12;stroke-dashoffset:0}
 .voice-actions.speaking .wave-flow{opacity:1;animation:nuna-sea-flow 1.1s linear infinite}
