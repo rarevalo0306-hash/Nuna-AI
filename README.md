@@ -31,3 +31,7 @@ Configuración se abre en pantalla completa desde Cuenta personal → ⋯. Inclu
 Después de cambiar variables, vuelve a desplegar. Usa «Probar OpenAI» e introduce solamente el código privado. La clave de API permanece en servidor. El código de prueba permanece en memoria de la página y se pierde al recargar. El endpoint exige este código, admite solo texto y limita tamaño de conversación y salida. No habilita seguridad de cuentas, límites globales de gasto ni autenticación por usuario. Usa límites de gasto del proveedor y restringe quién recibe el código. El modo normal permanece simulado; un error de API nunca se sustituye por una respuesta ficticia.
 
 El servidor pide `store: false` en Responses API. Esto no equivale a una garantía de retención cero por parte del proveedor.
+
+## Anthropic
+
+La prueba privada también admite Anthropic Messages API. En Vercel añade `ANTHROPIC_API_KEY` y `NUNA_ANTHROPIC_MODEL` (ID exacto de un modelo disponible en tu cuenta Anthropic). Se usa el mismo `NUNA_ACCESS_CODE`. El modelo Anthropic se configura explícitamente, sin asumir una versión disponible. Selecciona «Claude · Anthropic», activa «Probar IA» y envía texto. No envíes adjuntos: esta integración todavía es solo de texto. Las claves se mantienen en servidor. No se promete retención cero de datos por el proveedor.
