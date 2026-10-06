@@ -43,7 +43,7 @@ module.exports = async function handler(req, res) {
         ? { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' }
         : { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(isGemini
-        ? { systemInstruction: { parts: [{ text: instructions }] }, contents: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: 1200 } }
+        ? { systemInstruction: { parts: [{ text: instructions }] }, contents: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: 1200, ...(model.startsWith('gemini-2.5-flash') ? { thinkingConfig: { thinkingBudget: 0 } } : {}) } }
         : isAnthropic
         ? { model, system: instructions, messages, max_tokens: 1200 }
         : isDeepSeek ? { model, messages: [{ role: 'system', content: instructions }, ...messages], max_tokens: 1200, stream: false }
@@ -51,7 +51,8 @@ module.exports = async function handler(req, res) {
       signal: AbortSignal.timeout(45000)
     });
     if (!response.ok) {
-      return res.status(response.status === 429 ? 429 : 502).json({ error: response.status === 429 ? 'provider_limit' : 'provider_error' });
+      const errors = { 400: 'provider_request', 401: 'provider_auth', 403: 'provider_permission', 404: 'provider_model', 429: 'provider_limit' };
+      return res.status(response.status === 429 ? 429 : 502).json({ error: errors[response.status] || 'provider_error', provider });
     }
     const data = await response.json();
     const text = (isGemini
@@ -62,7 +63,11 @@ module.exports = async function handler(req, res) {
       : (data.output || []).filter(item => item.type === 'message')
           .flatMap(item => item.content || []).filter(item => item.type === 'output_text').map(item => item.text))
       .join('\n').trim();
-    if (!text) return res.status(502).json({ error: 'empty_response' });
+    if (!text) {
+      const finish = isGemini ? data.candidates?.[0]?.finishReason : null;
+      const error = data.promptFeedback?.blockReason || finish === 'SAFETY' ? 'provider_blocked' : finish === 'MAX_TOKENS' ? 'provider_output_limit' : 'empty_response';
+      return res.status(502).json({ error, provider });
+    }
     return res.status(200).json({ text, model: data.model || model, provider });
   } catch (error) {
     return res.status(502).json({ error: error.name === 'TimeoutError' ? 'provider_timeout' : 'provider_error' });
