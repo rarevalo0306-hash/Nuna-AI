@@ -33,7 +33,7 @@ voiceEnd.className = 'voice-round voice-hangup'; voiceEnd.style.cssText = '';
 voiceMute.hidden = voiceEnd.hidden = true;
 const voiceWave = document.createElement('span');
 voiceWave.className = 'voice-wave'; voiceWave.setAttribute('aria-hidden','true');
-voiceWave.innerHTML = '<svg viewBox="0 0 72 32" aria-hidden="true"><path class="wave-base" d="M0 16Q9 2 18 16T36 16T54 16T72 16"/><path class="wave-flow" d="M0 16Q9 2 18 16T36 16T54 16T72 16"/></svg>';
+voiceWave.innerHTML = '<svg viewBox="0 0 72 32" aria-hidden="true"><path class="wave-base" d="M0 16Q9 2 18 16T36 16T54 16T72 16"/><path class="wave-flow" d="M0 16Q9 2 18 16T36 16T54 16T72 16"/><g class="voice-swimmer" transform="translate(24 7) scale(.38)"><path d="M3 16C20-3 41-3 59 29M3 16C20 35 41 35 59 3"/></g></svg>';
 voiceActions.append(voiceMute, voiceWave, voiceEnd);
 voiceActions.hidden = true;
 document.querySelector('.composer-controls').insertBefore(voiceActions, document.getElementById('voice-open'));
@@ -73,11 +73,14 @@ voiceStyle.textContent = `
 .composer-controls .voice-round svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;animation:none;filter:none}
  .voice-wave{display:flex;align-items:center;width:64px;height:32px;color:var(--accent);overflow:hidden}
 .voice-wave svg{width:64px;height:32px;stroke:currentColor;stroke-width:2.5;fill:none;stroke-linecap:round;animation:none;filter:none}
-.voice-wave .wave-base{opacity:.3}
+.voice-wave .wave-base{opacity:.2}
+.voice-wave .voice-swimmer{stroke-width:3;transform-origin:center;transform-box:fill-box}
+.voice-actions.speaking .voice-swimmer{animation:nuna-swim 1.8s ease-in-out infinite}
+@keyframes nuna-swim{0%,100%{translate:-6px 0;rotate:-3deg}50%{translate:6px -3px;rotate:3deg}}
 .voice-wave .wave-flow{opacity:0;stroke-dasharray:22 12;stroke-dashoffset:0}
 .voice-actions.speaking .wave-flow{opacity:1;animation:nuna-sea-flow 1.1s linear infinite}
 @keyframes nuna-sea-flow{to{stroke-dashoffset:-34}}
-@media(prefers-reduced-motion:reduce){.voice-actions.speaking .wave-flow{animation:none;stroke-dasharray:none}}
+@media(prefers-reduced-motion:reduce){.voice-actions.speaking .wave-flow{animation:none;stroke-dasharray:none}.voice-actions.speaking .voice-swimmer{animation:none}}
 #voice-open[aria-expanded=true]{background:var(--accent);color:var(--bg)}
 @media(max-width:760px){#voice-dialog.voice-inline{padding:10px 12px}#voice-dialog.voice-inline #voice-close{width:44px;height:44px}}
 `;
