@@ -25,7 +25,7 @@ async function connectRealtimeSocket({signal,generation}){
  try{
   const headers=await aiAuthHeaders(),token=await authAccessToken();if(token)headers.Authorization='Bearer '+token;
   voiceSetStatus('Comprobando tu sesión…','Checking your session…');
-  const response=await fetch('/api/voice',{method:'POST',headers:{...headers,'Content-Type':'application/json'},signal,body:JSON.stringify({transport:'websocket',language:lang,project:projectContextForChat(voiceChat)})});
+  const response=await fetch('/api/voice',{method:'POST',headers:{...headers,'Content-Type':'application/json'},signal,body:JSON.stringify({transport:'websocket',language:lang,timeZone:deviceTimeZone(),project:projectContextForChat(voiceChat)})});
   const credentials=await response.json();if(!response.ok)throw Object.assign(new Error('voice'),{code:credentials.error});
   if(!active())throw new DOMException('Cancelled','AbortError');
   voiceSetStatus('Permite el micrófono si Safari lo solicita…','Allow the microphone if Safari asks…');
@@ -85,6 +85,6 @@ async function connectRealtimeSocket({signal,generation}){
    };
    if(signal.aborted)abort();
   });
-  return{duration:credentials.clientDurationSeconds||300,close,start(){started=true},mute(value){muted=value;stream.getAudioTracks().forEach(track=>track.enabled=!value);send({type:'input_audio_buffer.clear'})},resume(){return context.resume()}};
+  return{duration:credentials.clientDurationSeconds||300,close,send,start(){started=true},mute(value){muted=value;stream.getAudioTracks().forEach(track=>track.enabled=!value);send({type:'input_audio_buffer.clear'})},resume(){return context.resume()}};
  }catch(error){close();throw error}
 }

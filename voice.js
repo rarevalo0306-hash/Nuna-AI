@@ -146,7 +146,19 @@ function storeVoiceRecords() {
   voiceChat.messages = [...voiceBase, ...voiceRecords.filter(r => r.text).map(r => [r.role, r.text])];
   save(); render(); if (active === voiceChat.id) scrollBottom();
 }
+function deviceTimeZone(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone}catch{return 'UTC'}}
+const voiceClockCalls=new Set();
+async function answerVoiceClock(call){
+ if(call.name!=='get_current_time'||typeof call.call_id!=='string'||voiceClockCalls.has(call.call_id)||!voiceConnection?.send)return;
+ voiceClockCalls.add(call.call_id);const generation=voiceGeneration,connection=voiceConnection;let clock;
+ try{const response=await fetch('/api/clock?timeZone='+encodeURIComponent(deviceTimeZone()),{signal:AbortSignal.timeout(5000),cache:'no-store'});if(!response.ok)throw new Error('clock');clock=await response.json()}catch{clock={error:'Current time unavailable. Do not invent a time.'}}
+ if(generation!==voiceGeneration||connection!==voiceConnection)return;
+ connection.send({type:'conversation.item.create',item:{type:'function_call_output',call_id:call.call_id,output:JSON.stringify(clock)}});
+ connection.send({type:'response.create'});
+}
 function receiveVoiceEvent(event) {
+  if(event.type==='response.done'&&event.response?.status==='completed'){for(const item of event.response.output||[])if(item.type==='function_call')answerVoiceClock(item);}
+
   if (event.type === 'input_audio_buffer.committed') {
     if (!voiceRecords.some(r => r.id === event.item_id)) voiceRecords.push({id:event.item_id,role:'user',text:''});
   } else if (event.type === 'conversation.item.input_audio_transcription.completed') {
@@ -257,14 +269,14 @@ const voiceAdapters = {
         await pc.setLocalDescription(await pc.createOffer());
         await gatherVoiceCandidates(pc,signal);
         voiceSetStatus('Preparando la respuesta de voz…','Preparing the voice response…');
-        const response = await fetch('/api/voice',{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({sdp:pc.localDescription.sdp,language:lang,project:projectContextForChat(voiceChat)}),signal});
+        const response = await fetch('/api/voice',{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({sdp:pc.localDescription.sdp,language:lang,timeZone:deviceTimeZone(),project:projectContextForChat(voiceChat)}),signal});
         const answer = await response.json();
         if (!response.ok) throw Object.assign(new Error('voice'),{code:answer.error});
         if (generation !== voiceGeneration) throw new DOMException('Cancelled','AbortError');
         voiceSetStatus('Abriendo el canal de audio…','Opening the audio channel…');
         await pc.setRemoteDescription({type:'answer',sdp:answer.sdp});
         await waitForVoiceChannel(channel,signal);
-        return {close, mute(value){stream.getAudioTracks().forEach(track => {track.enabled=!value;});}, duration:answer.clientDurationSeconds || 300};
+        return {close, send(event){if(channel.readyState==='open')channel.send(JSON.stringify(event))}, mute(value){stream.getAudioTracks().forEach(track => {track.enabled=!value;});}, duration:answer.clientDurationSeconds || 300};
       } catch (error) { close(); throw error; }
     }
   }
@@ -294,7 +306,7 @@ async function startRealVoice() {
     voiceChat=custom.find(c => c.id === active) || null;
     // New voice chats are created only after the connection succeeds.
     voiceBase=voiceChat ? voiceChat.messages.map(m=>[...m]) : [];
-    voiceRecords=[];
+    voiceRecords=[];voiceClockCalls.clear();
     const isAppleMobile=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
     const connection=await (isAppleMobile ? connectRealtimeSocket : voiceAdapters.openai.connect)({signal:voiceAbort.signal,generation});
     if (generation !== voiceGeneration || (authUser?.id || null) !== voiceOwner) {connection.close();stopRealVoice();return;}

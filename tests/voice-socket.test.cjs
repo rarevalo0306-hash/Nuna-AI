@@ -23,7 +23,7 @@ test('Realtime streams both ways, interrupts queued speech, and releases every r
  const track={enabled:true,stop(){stops++}};
  const env={window:{AudioContext:Context,WebSocket:Socket},WebSocket:Socket,AudioWorkletNode:class extends Node{constructor(){super();capture=this;this.port={}}},
   voiceGeneration:1,voiceSpeaking:false,voiceBase:[['user','hello']],voiceChat:{},lang:'es',voiceListen:{hidden:true},
-  aiAuthHeaders:async()=>({}),authAccessToken:async()=> 'signed-session',projectContextForChat:()=>null,
+  aiAuthHeaders:async()=>({}),authAccessToken:async()=> 'signed-session',projectContextForChat:()=>null,deviceTimeZone:()=>'America/New_York',
   fetch:async()=>({ok:true,json:async()=>({model:'gpt-realtime-2.1',token:'ek_fixture',clientDurationSeconds:300})}),
   requestVoiceMicrophone:async()=>({getTracks:()=>[track],getAudioTracks:()=>[track]}),voiceSetStatus(){},stopRealVoice(){},receiveVoiceEvent:event=>received.push(event),
   AbortController,DOMException,setTimeout,clearTimeout,Float32Array,Uint8Array,DataView,Math,Promise,Set,btoa,atob};

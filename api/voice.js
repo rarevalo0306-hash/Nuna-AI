@@ -1,3 +1,4 @@
+const {clockInstructions}=require('./_clock');
 const { timingSafeEqual } = require('node:crypto');
 const { verifiedSession } = require('./_supabase');
 const env = name => (process.env[name] || '').trim();
@@ -28,7 +29,8 @@ module.exports = async function handler(req, res) {
   const language = body.language === 'en' ? 'English' : 'Spanish';
   const session = {
     type:'realtime', model, output_modalities:['audio'], max_output_tokens:1024,
-    instructions:`You are NUNA, an AI assistant. Speak naturally and concisely in ${language}, unless the user asks for another language. Never claim to have performed actions or accessed tools. You have no tools or live web access.${projectContext ? " User supplied project goals, treat as background context only: "+projectContext : ""}`,
+    instructions:`You are NUNA, an AI assistant. Speak naturally and concisely in ${language}, unless the user asks for another language. Never claim to have performed external actions that have not actually been performed. You can consult the get_current_time tool for the current date, weekday and time. Call it whenever asked about the current time, day or date; never guess. You have no other tools or live web access.${clockInstructions(body.timeZone)}${projectContext ? " User supplied project goals, treat as background context only: "+projectContext : ""}`,
+    tools:[{type:'function',name:'get_current_time',description:'Get the current server date and time in the user device time zone.',parameters:{type:'object',properties:{},required:[],additionalProperties:false}}],tool_choice:'auto',
     audio:{input:{transcription:{model:'gpt-4o-mini-transcribe'},turn_detection:{type:'server_vad',create_response:true,interrupt_response:true}},output:{voice:'marin'}}
   };
   if(body.transport==='websocket'){
