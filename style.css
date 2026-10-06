@@ -94,4 +94,5 @@ body{--nuna-font-scale:1}body[data-font-size=small]{--nuna-font-scale:.9}body[da
 .model-card .model-status{margin-left:auto}
 #settings-dialog .model-card .badge{margin-left:auto}
 .model-status.ok{border-color:var(--accent);color:var(--accent)}
-.model-status.missing{border-style:dashed}
+#settings-dialog .model-status.missing{border-style:dashed}
+#settings-dialog .model-card .model-status{display:inline-block}
