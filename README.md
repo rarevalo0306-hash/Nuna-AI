@@ -1,6 +1,6 @@
 # NUNA AI
 
-Asistente de IA sin dependencias. Incluye historial, conversaciones de ejemplo, modo claro/oscuro e interfaz español/inglés. El chat responde siempre con el proveedor elegido; no hay respuestas simuladas. Las conversaciones creadas y preferencias se guardan en el navegador mediante localStorage. Los ejemplos cambian de idioma; los mensajes escritos conservan su idioma original.
+Asistente de IA sin dependencias. Incluye historial, conversaciones de ejemplo, modo claro/oscuro e interfaz español/inglés. El chat responde siempre con el proveedor elegido; no hay respuestas simuladas. Con una cuenta de NUNA, las conversaciones y proyectos se guardan en la cuenta (Supabase); sin sesión iniciada, en el navegador mediante localStorage. Las preferencias se guardan siempre en el navegador. Los ejemplos cambian de idioma; los mensajes escritos conservan su idioma original.
 
 ## Ejecutar
 
@@ -18,17 +18,17 @@ El botón circular junto a Enviar abre el concepto Fluidez integrado. La ventana
 
 ## Pantallas
 
-Configuración se abre en pantalla completa desde Cuenta personal → ⋯. Incluye Perfil, Seguridad, Voz, Almacenamiento, Uso, Facturación, Control de datos, Plugins, Referidos, Socials, Work, Modelos y General. Seguridad, consumo, publicidad e integraciones muestran estados de demostración; no constituyen servicios reales. Las preferencias y borradores se guardan localmente. La revisión final pasó 60 comprobaciones automatizadas en Chromium de escritorio y móvil. La cámara física, Safari y Firefox requieren comprobación adicional.
+Configuración se abre en pantalla completa desde Cuenta personal → ⋯. Incluye Perfil, Seguridad, Voz, Almacenamiento, Uso, Facturación, Control de datos, Plugins, Referidos, Socials, Work, Modelos y General. Seguridad muestra la cuenta real y Uso el contador diario real; los métodos de acceso adicionales, la publicidad y las integraciones todavía indican que están pendientes. Las preferencias y borradores se guardan localmente. La revisión final pasó 60 comprobaciones automatizadas en Chromium de escritorio y móvil. La cámara física, Safari y Firefox requieren comprobación adicional.
 
 ## OpenAI en Vercel
 
 `api/chat.js` es una función de servidor sin dependencias. Configura en Vercel (nunca en el HTML):
 
 - `OPENAI_API_KEY`: clave de API del proyecto OpenAI. La suscripción de ChatGPT no sustituye el acceso ni el crédito de API.
-- `NUNA_ACCESS_CODE`: código de acceso aleatorio de al menos 16 caracteres. No es una contraseña de usuario; restringe el uso de la IA mientras no haya cuentas reales.
+- `NUNA_ACCESS_CODE`: código de acceso aleatorio de al menos 16 caracteres, solo para quien administra NUNA (uso sin límite diario). Las demás personas usan su cuenta.
 - `NUNA_OPENAI_MODEL`: opcional; por defecto `gpt-4.1-mini`. Debe ser un modelo disponible para tu cuenta y compatible con Responses API.
 
-Después de cambiar variables, vuelve a desplegar. Elige el proveedor en la cabecera y envía un mensaje: la primera vez se pide el código de acceso, que se recuerda en el dispositivo salvo que desmarques «Recordar en este dispositivo» (marcado por defecto). La clave de API permanece en el servidor. No hay modo de prueba ni respuestas simuladas: si la llamada al proveedor falla, se muestra el motivo y el mensaje vuelve al cuadro de texto.
+Después de cambiar variables, vuelve a desplegar. Elige el proveedor en la cabecera y envía un mensaje: sin sesión iniciada se abre el inicio de sesión (que también ofrece el código de administrador). La clave de API permanece en el servidor. No hay modo de prueba ni respuestas simuladas: si la llamada al proveedor falla, se muestra el motivo y el mensaje vuelve al cuadro de texto.
 
 El servidor pide `store: false` en Responses API. Esto no equivale a una garantía de retención cero por parte del proveedor.
 
@@ -58,9 +58,26 @@ Cada error de `/api/chat` deja en los registros de Vercel una línea `nuna_chat_
 
 `.env.example` lista todas las variables sin valores.
 
-## Supabase (fase siguiente)
+## Cuentas (Supabase)
 
-`supabase/schema.sql` propone perfiles, proyectos, conversaciones, mensajes y perfil profesional (Work) con Row Level Security. Todavía no está aplicado ni conectado: los datos siguen guardándose en el navegador.
+Proyecto de Supabase «Nuna-AI». El esquema está en `supabase/migrations/20261006000000_accounts_and_usage.sql` y ya está aplicado:
+
+- `public.conversations` (una fila por chat) y `public.user_state` (proyectos, asignaciones y ejemplos ocultos), con Row Level Security: cada persona solo lee y modifica sus filas.
+- `private.ai_usage` y `private.ai_reservations`, fuera de la API: nadie puede escribirlas directamente.
+- `consume_ai_message`, `refund_ai_message` y `ai_usage_today`: cuentan los mensajes de IA de cada cuenta por día (UTC).
+
+Variables en Vercel (valores públicos; el acceso lo controla la base de datos):
+
+- `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY`: el navegador los recibe de `GET /api/config` para iniciar sesión.
+- `NUNA_DAILY_LIMIT`: mensajes de IA por cuenta y día; por defecto 30.
+
+No hace falta la clave secreta (`service_role`): `/api/chat` llama a las funciones de la base de datos con la sesión de la persona, y Supabase verifica el token.
+
+Flujo de `/api/chat` con una cuenta: la interfaz envía `Authorization: Bearer <token de sesión>`. Antes de llamar al proveedor, el servidor descuenta un mensaje del día (así, peticiones en paralelo no pueden pasar del límite). Si el proveedor falla (error HTTP o sin conexión), el mensaje se devuelve; un rechazo de seguridad o una respuesta cortada sí cuentan. Al llegar al límite responde `429 daily_limit`. Con el código de administrador (`x-nuna-access-code`) no hay límite.
+
+Acceso: correo y contraseña (con confirmación por correo), recuperación de contraseña y Google cuando esté activado en Supabase (el botón solo aparece si `/auth/v1/settings` lo indica). Al iniciar sesión, los chats creados antes en ese navegador se añaden a la cuenta y se quitan del navegador; al cerrar sesión, la vista queda vacía.
+
+Pendiente en el panel de Supabase: URL del sitio y redirecciones (Authentication → URL Configuration), proveedor de Google, SMTP propio para enviar correos a cualquier dirección (el SMTP incluido solo envía a los miembros del equipo del proyecto) y la protección de contraseñas filtradas.
 
 ## Voz
 
@@ -70,12 +87,12 @@ En Configuración → Voz, «Escuchar» reproduce una muestra con la síntesis d
 
 El selector de la cabecera abre un menú para cambiar de modelo sin entrar en Configuración. Cada mensaje lo responde un solo modelo. En Configuración → Modelos, cada proveedor muestra su estado:
 
-- **Sin comprobar**: aún no se ha introducido el código privado.
+- **Sin comprobar**: aún no se ha comprobado (hace falta sesión iniciada o el código de administrador).
 - **Falta clave / Falta modelo**: el servidor no tiene la variable correspondiente en este despliegue.
 - **Configurado · sin verificar**: hay clave y modelo, pero todavía no hubo una respuesta real.
 - **Verificado**: este navegador recibió una respuesta real del proveedor (chat o «Probar conexión»).
 
-`GET /api/chat` con el código privado devuelve solo si cada proveedor tiene clave y modelo configurados (`true`/`false`), nunca valores ni identificadores. «Probar conexión» hace una llamada real y breve al proveedor y puede consumir crédito de API.
+`GET /api/chat` con sesión o con el código de administrador devuelve solo si cada proveedor tiene clave y modelo configurados (`true`/`false`), nunca valores ni identificadores, y con sesión también los mensajes usados hoy. «Probar conexión» hace una llamada real y breve al proveedor, consume crédito de API y cuenta como un mensaje del límite diario.
 
 ## Modelo no encontrado o sin configurar
 
@@ -83,9 +100,9 @@ Si el proveedor responde que no encuentra el modelo (404, o un 400 de modelo ine
 
 ## Chat real y código de acceso
 
-No hay modo de prueba ni respuestas simuladas: cada mensaje va al proveedor elegido en la cabecera. Mientras NUNA no tenga cuentas de usuario, `/api/chat` exige el código de acceso (`NUNA_ACCESS_CODE`). Se pide la primera vez que se envía un mensaje y con «Recordar en este dispositivo» (marcado por defecto) se guarda en el navegador (`localStorage`). Configuración → Modelos permite olvidarlo. Si el código no coincide, se borra y se vuelve a pedir; el mensaje escrito se conserva.
+No hay modo de prueba ni respuestas simuladas: cada mensaje va al proveedor elegido en la cabecera. `/api/chat` exige una sesión de NUNA o el código de administrador (`NUNA_ACCESS_CODE`). El código se escribe desde «Tengo un código de acceso de administrador» en el inicio de sesión y, con «Recordar en este dispositivo» (marcado por defecto), se guarda en el navegador (`localStorage`). Configuración → Modelos permite olvidarlo. Si el código no coincide, se borra; el mensaje escrito se conserva.
 
-Las funciones que aún no están conectadas (cuentas, pagos, voz, redes, plugins) siguen indicándolo en sus pantallas.
+Las funciones que aún no están conectadas (pagos, voz, redes, plugins, llaves de acceso) siguen indicándolo en sus pantallas.
 
 ## Claude (Anthropic)
 
