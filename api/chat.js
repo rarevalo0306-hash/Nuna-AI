@@ -1,4 +1,5 @@
 const { timingSafeEqual } = require('node:crypto');
+const { supabaseConfig, dailyLimit, supabaseRpc } = require('./_supabase');
 
 function authorized(value, expected) {
   if (typeof value !== 'string' || !expected) return false;
@@ -45,25 +46,47 @@ async function listProviderModels(provider, key) {
   }
 }
 
+// Only PostgREST's JWT errors (PGRST30x) mean the person's session is bad; any other 401/403 (a wrong publishable key,
+// a missing grant) is a server misconfiguration and must not send people into a login loop.
+const sessionRejected = (status, data) => status === 401 && /^PGRST30\d$/.test(String(data?.code || ''));
+
+// A request that never reached the provider was not billed, so its message can be given back.
+const notSent = error => ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT'].includes(error?.cause?.code);
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   // Log only the error code and provider so failures can be diagnosed in Vercel logs without exposing secrets or message content.
   const fail = (status, error, provider, extra = {}) => {
     console.warn(JSON.stringify({ nuna_chat_error: error, provider: provider || null, status, ...extra }));
-    return res.status(status).json(provider ? { error, provider, ...extra } : { error });
+    return res.status(status).json(provider ? { error, provider, ...extra } : { error, ...extra });
   };
   if (req.method !== 'POST' && req.method !== 'GET') return fail(405, 'method_not_allowed');
-  // Trim so a stray space or newline pasted into Vercel or the code field does not break the comparison.
-  const accessCode = (process.env.NUNA_ACCESS_CODE || '').trim();
-  if (!accessCode) return fail(503, 'access_code_missing');
-  if (accessCode.length < 16) return fail(503, 'access_code_short');
-  if (!authorized(String(req.headers['x-nuna-access-code'] || '').trim(), accessCode)) {
-    return fail(401, 'unauthorized');
+  // Two ways in: the owner's private access code (no daily limit), or a signed-in NUNA account (daily limit).
+  const code = String(req.headers['x-nuna-access-code'] || '').trim();
+  const session = code ? '' : (/^Bearer\s+([\w.-]{20,4096})$/i.exec(String(req.headers.authorization || '')) || [])[1] || '';
+  if (code) {
+    // Trim so a stray space or newline pasted into Vercel or the code field does not break the comparison.
+    const accessCode = (process.env.NUNA_ACCESS_CODE || '').trim();
+    if (!accessCode) return fail(503, 'access_code_missing');
+    if (accessCode.length < 16) return fail(503, 'access_code_short');
+    if (!authorized(code, accessCode)) return fail(401, 'unauthorized');
+  } else if (!session) {
+    return fail(401, 'login_required');
+  } else if (!supabaseConfig()) {
+    return fail(503, 'accounts_not_configured');
   }
   const config = providerConfig();
-  // GET reports only whether each provider has a key and a model configured: never values, model IDs or secrets.
+  // GET reports only whether each provider has a key and a model configured (never values, model IDs or secrets),
+  // plus today's usage for an account.
   if (req.method === 'GET') {
-    return res.status(200).json({ providers: Object.fromEntries(PROVIDERS.map(p => [p, { key: Boolean(config.key[p]), model: Boolean(config.model[p]) }])) });
+    let usage = null;
+    if (session) {
+      const { status, data } = await supabaseRpc('ai_usage_today', session);
+      if (sessionRejected(status, data)) return fail(401, 'session_expired');
+      if (status !== 200 || !Number.isInteger(data)) return fail(503, 'accounts_unavailable');
+      usage = { used: data, limit: dailyLimit() };
+    }
+    return res.status(200).json({ providers: Object.fromEntries(PROVIDERS.map(p => [p, { key: Boolean(config.key[p]), model: Boolean(config.model[p]) }])), usage });
   }
   let body = req.body;
   if (typeof body === 'string') {
@@ -74,7 +97,8 @@ module.exports = async function handler(req, res) {
   const key = config.key[provider];
   const model = config.model[provider];
   if (!key) return fail(503, 'provider_key_missing', provider);
-  if (!model) return fail(503, 'provider_model_missing', provider, { available: await listProviderModels(provider, key) });
+  // Model lists and IDs are configuration details for the owner; accounts only learn that the model is missing.
+  if (!model) return fail(503, 'provider_model_missing', provider, code ? { available: await listProviderModels(provider, key) } : {});
   const messages = body?.messages;
   if (!Array.isArray(messages) || !messages.length || messages.length > 30 ||
       messages.some(m => !m || !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string' || !m.content.trim() || m.content.length > 12000) ||
@@ -82,6 +106,28 @@ module.exports = async function handler(req, res) {
     return fail(400, 'invalid_messages', provider);
   }
   if (body.attachments) return fail(400, 'text_only', provider);
+  // An account spends one of today's messages before the provider is called, so parallel requests cannot exceed the limit.
+  // If the provider then fails, the message is given back.
+  let usage = null, reservation = null;
+  if (session) {
+    const limit = dailyLimit();
+    if (limit === 0) return fail(503, 'accounts_paused');
+    const { status, data } = await supabaseRpc('consume_ai_message', session, { p_limit: limit });
+    if (sessionRejected(status, data)) return fail(401, 'session_expired');
+    const row = Array.isArray(data) ? data[0] : null;
+    if (status !== 200 || !row || typeof row.ok !== 'boolean') return fail(503, 'accounts_unavailable');
+    usage = { used: row.used_today, limit: row.day_limit };
+    if (!row.ok) return fail(429, 'daily_limit', null, { usage });
+    reservation = row.reservation_id;
+  }
+  const refund = async () => {
+    if (!reservation) return;
+    let result = await supabaseRpc('refund_ai_message', session, { p_reservation: reservation });
+    if (result.status !== 200) result = await supabaseRpc('refund_ai_message', session, { p_reservation: reservation });
+    reservation = null;
+    if (result.status === 200 && result.data === true) usage = { ...usage, used: Math.max(usage.used - 1, 0) };
+  };
+  let response = null;
   try {
     const instructions = 'You are NUNA AI, a helpful assistant. Reply in the language of the user. Never claim to perform actions that have not been performed.';
     const isAnthropic = provider === 'anthropic';
@@ -94,7 +140,7 @@ module.exports = async function handler(req, res) {
     const isDeepSeek = Boolean(chatCompletionsUrl);
     const isGemini = provider === 'gemini';
     // Newer Gemini models think before answering and that thinking counts toward maxOutputTokens, so they get room for both.
-    const response = await fetch(isGemini ? `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent` : isAnthropic ? 'https://api.anthropic.com/v1/messages' : isDeepSeek ? chatCompletionsUrl : 'https://api.openai.com/v1/responses', {
+    response = await fetch(isGemini ? `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent` : isAnthropic ? 'https://api.anthropic.com/v1/messages' : isDeepSeek ? chatCompletionsUrl : 'https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: isGemini ? { 'x-goog-api-key': key, 'Content-Type': 'application/json' } : isAnthropic
         ? { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json', ...(claudeAdaptive ? { 'anthropic-beta': 'server-side-fallback-2026-07-01' } : {}) }
@@ -113,7 +159,10 @@ module.exports = async function handler(req, res) {
       // OpenAI's Responses API and DeepSeek report an unknown model as a 400; read the body only to recognize that case (never logged or returned).
       const body = response.status === 400 ? await response.text().catch(() => '') : '';
       const modelMissing = response.status === 404 || /model_not_found|model[^.]{0,60}(not exist|does not exist|not found)/i.test(body);
-      const extra = modelMissing ? { model, available: await listProviderModels(provider, key) } : {};
+      // The provider refused the request, so it produced nothing to bill: give the message back first.
+      await refund();
+      const extra = modelMissing && code ? { model, available: await listProviderModels(provider, key) } : {};
+      if (usage) extra.usage = usage;
       return fail(response.status === 429 ? 429 : 502, modelMissing ? 'provider_model' : errors[response.status] || 'provider_error', provider, extra);
     }
     const data = await response.json();
@@ -125,14 +174,19 @@ module.exports = async function handler(req, res) {
       : (data.output || []).filter(item => item.type === 'message')
           .flatMap(item => item.content || []).filter(item => item.type === 'output_text').map(item => item.text))
       .join('\n').trim();
-    if (isAnthropic && data.stop_reason === 'refusal') return fail(502, 'provider_blocked', provider);
+    // A refusal or a cut-off reply still used the provider, so it counts toward the daily limit.
+    const spent = usage ? { usage } : {};
+    if (isAnthropic && data.stop_reason === 'refusal') return fail(502, 'provider_blocked', provider, spent);
     if (!text) {
       const finish = isGemini ? data.candidates?.[0]?.finishReason : isDeepSeek && data.choices?.[0]?.finish_reason === 'length' ? 'MAX_TOKENS' : null;
       const error = data.promptFeedback?.blockReason || finish === 'SAFETY' ? 'provider_blocked' : finish === 'MAX_TOKENS' ? 'provider_output_limit' : 'empty_response';
-      return fail(502, error, provider);
+      return fail(502, error, provider, spent);
     }
-    return res.status(200).json({ text, model: data.model || model, provider });
+    return res.status(200).json({ text, model: data.model || model, provider, usage });
   } catch (error) {
-    return fail(502, error.name === 'TimeoutError' ? 'provider_timeout' : 'provider_error', provider);
+    // A timeout or a dropped connection may come after the provider already generated (and billed) the reply,
+    // so only a request that never left is given back. Otherwise a slow request would be a free one.
+    if (!response && notSent(error)) await refund();
+    return fail(502, error.name === 'TimeoutError' ? 'provider_timeout' : 'provider_error', provider, usage ? { usage } : {});
   }
 };

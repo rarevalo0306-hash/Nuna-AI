@@ -96,3 +96,18 @@ body{--nuna-font-scale:1}body[data-font-size=small]{--nuna-font-scale:.9}body[da
 .model-status.ok{border-color:var(--accent);color:var(--accent)}
 #settings-dialog .model-status.missing{border-style:dashed}
 #settings-dialog .model-card .model-status{display:inline-block}
+/* Real accounts */
+#auth-dialog .auth-message{min-height:1.2em;font-size:13px;line-height:1.5;color:var(--muted);margin:12px 0}
+#auth-dialog .auth-message:empty{margin:0;min-height:0}
+#auth-dialog .auth-who{font-size:15px;font-weight:600;margin:4px 0 8px;word-break:break-all}
+#auth-dialog .auth-hint{display:block;font-size:12px;color:var(--muted);margin-top:6px}
+#auth-dialog .auth-terms{font-size:12px;line-height:1.5;margin-top:18px}
+#auth-dialog .auth-switch{min-height:40px;margin-top:8px}
+#auth-dialog .auth-admin{color:var(--muted);font-size:12px}
+#auth-dialog .auth-primary{min-height:44px;margin-top:8px}
+#auth-dialog .auth-primary:disabled{opacity:.6;cursor:default}
+#auth-dialog form .settings-field input{width:100%;box-sizing:border-box}
+#settings-dialog .settings-account{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:14px;border:1px solid var(--border);border-radius:16px;margin:0 0 14px}
+#settings-dialog .settings-account p{margin:0;font-size:13px;line-height:1.5;word-break:break-word;flex:1 1 220px}
+#auth-header{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:600px){#auth-header{max-width:110px}}
