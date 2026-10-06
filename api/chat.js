@@ -83,6 +83,10 @@ module.exports = async function handler(req, res) {
   try {
     const instructions = 'You are NUNA AI, a helpful assistant. Reply in the language of the user. Never claim to perform actions that have not been performed.';
     const isAnthropic = provider === 'anthropic';
+    // Claude Opus 5 / 5.5, Fable 5 and Sonnet 5.5 always think: effort sets how much, thinking counts toward max_tokens,
+    // and a safety decline is retried server-side on Anthropic's recommended fallback model.
+    const claudeAdaptive = isAnthropic && /^claude-(opus-5|fable-5|sonnet-5-5)/.test(model);
+    const claudeEffort = ['low', 'medium', 'high', 'xhigh', 'max'].includes(process.env.NUNA_ANTHROPIC_EFFORT) ? process.env.NUNA_ANTHROPIC_EFFORT : 'low';
     // DeepSeek, Grok (xAI) and Qwen (DashScope compatible mode) share the Chat Completions format.
     const chatCompletionsUrl = { deepseek: 'https://api.deepseek.com/chat/completions', grok: 'https://api.x.ai/v1/chat/completions', qwen: `${(process.env.NUNA_QWEN_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1').replace(/\/+$/, '')}/chat/completions` }[provider];
     const isDeepSeek = Boolean(chatCompletionsUrl);
@@ -91,12 +95,12 @@ module.exports = async function handler(req, res) {
     const response = await fetch(isGemini ? `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent` : isAnthropic ? 'https://api.anthropic.com/v1/messages' : isDeepSeek ? chatCompletionsUrl : 'https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: isGemini ? { 'x-goog-api-key': key, 'Content-Type': 'application/json' } : isAnthropic
-        ? { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' }
+        ? { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json', ...(claudeAdaptive ? { 'anthropic-beta': 'server-side-fallback-2026-07-01' } : {}) }
         : { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(isGemini
         ? { systemInstruction: { parts: [{ text: instructions }] }, contents: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })), generationConfig: model.startsWith('gemini-2.5-flash') ? { maxOutputTokens: 1200, thinkingConfig: { thinkingBudget: 0 } } : { maxOutputTokens: 8192 } }
         : isAnthropic
-        ? { model, system: instructions, messages, max_tokens: 1200 }
+        ? { model, system: instructions, messages, max_tokens: 16000, ...(claudeAdaptive ? { output_config: { effort: claudeEffort }, fallbacks: 'default' } : {}) }
         : isDeepSeek ? { model, messages: [{ role: 'system', content: instructions }, ...messages], max_tokens: 1200, stream: false }
         : { model, instructions, input: messages, max_output_tokens: 1200, store: false }),
       signal: AbortSignal.timeout(45000)
@@ -115,6 +119,7 @@ module.exports = async function handler(req, res) {
       : (data.output || []).filter(item => item.type === 'message')
           .flatMap(item => item.content || []).filter(item => item.type === 'output_text').map(item => item.text))
       .join('\n').trim();
+    if (isAnthropic && data.stop_reason === 'refusal') return fail(502, 'provider_blocked', provider);
     if (!text) {
       const finish = isGemini ? data.candidates?.[0]?.finishReason : null;
       const error = data.promptFeedback?.blockReason || finish === 'SAFETY' ? 'provider_blocked' : finish === 'MAX_TOKENS' ? 'provider_output_limit' : 'empty_response';

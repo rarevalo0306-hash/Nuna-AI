@@ -86,3 +86,7 @@ Si el proveedor responde que no encuentra el modelo (404), o si falta su variabl
 No hay modo de prueba ni respuestas simuladas: cada mensaje va al proveedor elegido en la cabecera. Mientras NUNA no tenga cuentas de usuario, `/api/chat` exige el código de acceso (`NUNA_ACCESS_CODE`). Se pide la primera vez que se envía un mensaje y, si se marca «Recordar en este dispositivo», se guarda en el navegador (`localStorage`). Configuración → Modelos permite olvidarlo. Si el código no coincide, se borra y se vuelve a pedir; el mensaje escrito se conserva.
 
 Las funciones que aún no están conectadas (cuentas, pagos, voz, redes, plugins) siguen indicándolo en sus pantallas.
+
+## Claude (Anthropic)
+
+`NUNA_ANTHROPIC_MODEL=claude-opus-5-5`. Claude Opus 5 / 5.5, Fable 5 y Sonnet 5.5 siempre razonan antes de responder: `NUNA_ANTHROPIC_EFFORT` (por defecto `low`, para respuestas rápidas en el chat) controla cuánto, y `max_tokens` es 16000 porque el razonamiento cuenta dentro de ese límite. Si los filtros de seguridad de Anthropic rechazan una pregunta, la API la reintenta en el modelo de respaldo que Anthropic recomienda (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`); si todo el recorrido la rechaza, NUNA muestra «El proveedor bloqueó esta solicitud».
