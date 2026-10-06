@@ -30,13 +30,7 @@ function refreshProjects(){
  const del=document.getElementById('delete-selected');del.hidden=!selecting;del.disabled=!selectedChats.size;del.textContent=(es?'Borrar':'Delete')+' ('+selectedChats.size+')';del.onclick=()=>deleteChats([...selectedChats],del);
  const area=document.getElementById('project-assignment');area.replaceChildren();
  if(project?.description){const details=document.createElement('p');details.className='project-description';details.textContent=project.description;area.append(details)}
- if(active){
-  const chat=custom.find(c=>c.id===active),label=document.createElement('label');label.textContent=es?'Mover conversación a proyecto':'Move conversation to project';const dropdown=document.createElement('select');
-  [{id:'',name:es?'Sin proyecto':'No project'},...projects].forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;dropdown.append(o)});dropdown.value=assignments[active]||chat?.project||'';
-  dropdown.onchange=()=>{if(dropdown.value)expandedProjects.add(dropdown.value);assignments[active]=dropdown.value;delete assignments['section:'+active];if(chat)chat.project=dropdown.value;persistProjects();save();render()};label.append(dropdown);area.append(label);
-  const assignedProject=projects.find(p=>p.id===dropdown.value);
-  if(assignedProject?.sections?.length){const sectionLabel=document.createElement('label');sectionLabel.textContent=es?'Sección':'Section';const pick=document.createElement('select');[{id:'',name:es?'Sin sección':'No section'},...assignedProject.sections].forEach(section=>{const o=document.createElement('option');o.value=section.id;o.textContent=section.name;pick.append(o)});pick.value=assignments['section:'+active]||'';pick.onchange=()=>{if(pick.value)expandedSections.add(assignedProject.id+':'+pick.value);assignments['section:'+active]=pick.value;currentSection=pick.value||'@direct';persistProjects();render()};sectionLabel.append(pick);area.append(sectionLabel)}
- }
+
 }
 function openSectionCreator(project,container){
  if(container.querySelector('form'))return;
@@ -51,7 +45,7 @@ function decorateChat(button,chat){
  if(project){if(!expandedProjects.has(project.id))return;const section=(project.sections||[]).find(s=>s.id===sectionId);target=section?sectionChatContainers.get(project.id+':'+section.id):projectChatContainers.get(project.id);if(!target)return;}
  const row=document.createElement('div');row.className='history-row';
  if(selecting){const check=document.createElement('input');check.type='checkbox';check.checked=selectedChats.has(chat.id);check.setAttribute('aria-label',(lang==='es'?'Seleccionar ':'Select ')+button.textContent);check.onchange=()=>{if(check.checked)selectedChats.add(chat.id);else selectedChats.delete(chat.id);render()};row.append(check)}
- const del=document.createElement('button');del.className='chat-delete';del.textContent='×';del.setAttribute('aria-label',(lang==='es'?'Borrar ':'Delete ')+button.textContent);del.onclick=()=>deleteChats([chat.id],del);
+ const del=document.createElement('button');del.className='chat-delete chat-more';del.textContent='⋯';del.setAttribute('aria-label',(lang==='es'?'Opciones de ':'Options for ')+button.textContent);del.setAttribute('aria-haspopup','dialog');del.setAttribute('aria-expanded','false');del.onclick=()=>openChatActions(chat,del);
  const original=button.onclick;button.onclick=()=>{currentProject=project?.id||null;currentSection=sectionId;original();};row.append(button,del);target.append(row);
 }
 let closeDeleteConfirmation = null;
@@ -156,3 +150,29 @@ const taskStyle=document.createElement('style');taskStyle.textContent=`
 `;document.head.append(taskStyle);
 
 const bulkHideStyle=document.createElement('style');bulkHideStyle.textContent='.sidebar-tools[hidden]{display:none!important}';document.head.append(bulkHideStyle);
+
+let closeChatActions=null;
+function openChatActions(chat,anchor){
+ if(closeChatActions){const same=anchor.getAttribute('aria-expanded')==='true';closeChatActions();if(same)return;}
+ const es=lang==='es',box=document.createElement('div');box.className='chat-actions-menu';box.setAttribute('role','dialog');box.setAttribute('aria-label',es?'Opciones del chat':'Chat options');document.body.append(box);anchor.setAttribute('aria-expanded','true');
+ function position(){const r=anchor.getBoundingClientRect(),b=box.getBoundingClientRect();box.style.left=Math.max(8,Math.min(r.right+6,innerWidth-b.width-8))+'px';box.style.top=Math.max(8,Math.min(r.top,innerHeight-b.height-8))+'px';}
+ function close(){box.remove();anchor.setAttribute('aria-expanded','false');document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',key,true);window.removeEventListener('resize',close);window.removeEventListener('scroll',close,true);closeChatActions=null;if(anchor.isConnected)anchor.focus();}
+ function outside(e){if(!box.contains(e.target)&&!anchor.contains(e.target))close();}
+ function key(e){if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close();}}
+ function action(text,fn,danger=false){const b=document.createElement('button');b.type='button';b.textContent=text;if(danger)b.className='danger';b.onclick=fn;box.append(b);return b;}
+ function move(project,section=null){assignments[chat.id]=project?.id||'';assignments['section:'+chat.id]=section?.id||'';const stored=custom.find(c=>c.id===chat.id);if(stored)stored.project=project?.id||null;if(project){expandedProjects.add(project.id);if(section)expandedSections.add(project.id+':'+section.id);}close();persistProjects();save();render();}
+ function showProjects(){box.replaceChildren();const title=document.createElement('strong');title.textContent=es?'Añadir a proyecto':'Add to project';box.append(title);
+  if(!projects.length){const note=document.createElement('p');note.textContent=es?'Primero crea un proyecto con el botón +.':'Create a project with the + button first.';box.append(note);}
+  projects.forEach(project=>action(project.name,()=>{if(!project.sections?.length){move(project);return;}box.replaceChildren();const label=document.createElement('strong');label.textContent=project.name;box.append(label);action(es?'Guardar directamente en el proyecto':'Save directly in project',()=>move(project));project.sections.forEach(section=>action('▱ '+section.name,()=>move(project,section)));action(es?'← Volver':'← Back',showProjects);position();box.querySelector('button')?.focus();}));
+  if(assignments[chat.id]||chat.project)action(es?'Quitar del proyecto':'Remove from project',()=>move(null));action(es?'Cancelar':'Cancel',close);position();box.querySelector('button')?.focus();
+ }
+ action(es?'Añadir a proyecto':'Add to project',showProjects);action(es?'Borrar':'Delete',()=>{close();deleteChats([chat.id],anchor);},true);position();box.querySelector('button').focus();
+ closeChatActions=close;document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',key,true);window.addEventListener('resize',close);window.addEventListener('scroll',close,true);
+}
+const chatActionsStyle=document.createElement('style');chatActionsStyle.textContent=`
+.chat-actions-menu{position:fixed;z-index:1000;width:230px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;padding:6px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 28px #0004}
+.chat-actions-menu button{display:block;width:100%;min-height:40px;text-align:left;padding:10px 12px;border:0;border-radius:8px;background:transparent;color:var(--text);font-size:13px;overflow-wrap:anywhere}
+.chat-actions-menu button:hover{background:var(--hover)}.chat-actions-menu .danger{color:#e5484d}
+.chat-actions-menu strong,.chat-actions-menu p{display:block;padding:8px 12px;margin:0;font-size:12px;line-height:1.4}
+.chat-more{font-size:22px!important;line-height:1}.chat-more[aria-expanded=true]{opacity:1!important;background:var(--hover)!important}
+`;document.head.append(chatActionsStyle);
