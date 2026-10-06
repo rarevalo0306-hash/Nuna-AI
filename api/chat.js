@@ -14,7 +14,7 @@ function providerConfig() {
   const env = name => (process.env[name] || '').trim();
   return {
     key: { openai: env('OPENAI_API_KEY'), anthropic: env('ANTHROPIC_API_KEY'), deepseek: env('DEEPSEEK_API_KEY'), gemini: env('GEMINI_API_KEY'), grok: env('XAI_API_KEY'), qwen: env('DASHSCOPE_API_KEY') },
-    model: { openai: env('NUNA_OPENAI_MODEL') || 'gpt-4.1-mini', anthropic: env('NUNA_ANTHROPIC_MODEL'), deepseek: env('NUNA_DEEPSEEK_MODEL') || 'deepseek-chat', gemini: env('NUNA_GEMINI_MODEL') || 'gemini-2.5-flash', grok: env('NUNA_GROK_MODEL'), qwen: env('NUNA_QWEN_MODEL') || 'qwen-plus' }
+    model: { openai: env('NUNA_OPENAI_MODEL') || 'gpt-4.1-mini', anthropic: env('NUNA_ANTHROPIC_MODEL'), deepseek: env('NUNA_DEEPSEEK_MODEL') || 'deepseek-chat', gemini: env('NUNA_GEMINI_MODEL') || 'gemini-flash-latest', grok: env('NUNA_GROK_MODEL'), qwen: env('NUNA_QWEN_MODEL') || 'qwen-plus' }
   };
 }
 
@@ -87,13 +87,14 @@ module.exports = async function handler(req, res) {
     const chatCompletionsUrl = { deepseek: 'https://api.deepseek.com/chat/completions', grok: 'https://api.x.ai/v1/chat/completions', qwen: `${(process.env.NUNA_QWEN_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1').replace(/\/+$/, '')}/chat/completions` }[provider];
     const isDeepSeek = Boolean(chatCompletionsUrl);
     const isGemini = provider === 'gemini';
+    // Newer Gemini models think before answering and that thinking counts toward maxOutputTokens, so they get room for both.
     const response = await fetch(isGemini ? `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent` : isAnthropic ? 'https://api.anthropic.com/v1/messages' : isDeepSeek ? chatCompletionsUrl : 'https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: isGemini ? { 'x-goog-api-key': key, 'Content-Type': 'application/json' } : isAnthropic
         ? { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' }
         : { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(isGemini
-        ? { systemInstruction: { parts: [{ text: instructions }] }, contents: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: 1200, ...(model.startsWith('gemini-2.5-flash') ? { thinkingConfig: { thinkingBudget: 0 } } : {}) } }
+        ? { systemInstruction: { parts: [{ text: instructions }] }, contents: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })), generationConfig: model.startsWith('gemini-2.5-flash') ? { maxOutputTokens: 1200, thinkingConfig: { thinkingBudget: 0 } } : { maxOutputTokens: 8192 } }
         : isAnthropic
         ? { model, system: instructions, messages, max_tokens: 1200 }
         : isDeepSeek ? { model, messages: [{ role: 'system', content: instructions }, ...messages], max_tokens: 1200, stream: false }
