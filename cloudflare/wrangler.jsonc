@@ -1,0 +1,11 @@
+{
+ "name":"nuna-private-storage",
+ "main":"worker.mjs",
+ "compatibility_date":"2026-10-06",
+ "account_id":"54befcbc87bf3d0513447d48e9c1919b",
+ "workers_dev":true,
+ "vars":{"SUPABASE_URL":"https://gkpbyuecjdctlanlutse.supabase.co","SUPABASE_KEY":"sb_publishable_a_drKnmPiUa-keJuWCCRNA_nptlsJJ4"},
+ "r2_buckets":[{"binding":"FILES","bucket_name":"nuna-private-files"}],
+ "durable_objects":{"bindings":[{"name":"ACCOUNTS","class_name":"AccountFiles"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["AccountFiles"]}]
+}

@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import worker,{AccountFiles} from './worker.mjs';
+const QUOTA=15_000_000_000,MAX_FILE=10_485_760;
+const owner='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222';
+function account(){const db=new DatabaseSync(':memory:'),objects=new Map();const sql={exec(query,...args){const stmt=db.prepare(query);const rows=stmt.columns().length?stmt.all(...args):(stmt.run(...args),[]);return{toArray:()=>rows}}};const env={FILES:{async put(k,b){objects.set(k,{body:b,size:b.byteLength})},async get(k){return objects.get(k)||null},async head(k){return objects.get(k)||null},async delete(k){objects.delete(k)}}};return {instance:new AccountFiles({storage:{sql,setAlarm:async()=>{}}},env),db,env,objects}}
+function request(method,path='/files',body,uid=owner){return new Request('https://account.internal'+path,{method,headers:{'X-Owner':uid,'X-Legacy-Bytes':'42','X-File-Name':'prueba.txt','Content-Type':'text/plain'},body})}
+const a=account(),b=account();
+let r=await a.instance.fetch(request('POST','/files','hello'));assert.equal(r.status,201);const f=await r.json();assert.equal(f.category,'documents');assert.ok(f.key.startsWith(owner+'/'));
+r=await a.instance.fetch(request('GET'));assert.equal((await r.json()).usedBytes,47);
+r=await a.instance.fetch(request('GET','/files/'+f.id));assert.equal(await r.text(),'hello');assert.match(r.headers.get('Content-Disposition'),/^attachment/);
+assert.equal((await b.instance.fetch(request('GET','/files/'+f.id,undefined,other))).status,404);
+assert.equal((await a.instance.fetch(request('GET','/files/'+f.id,undefined,other))).status,404);
+a.db.prepare("INSERT INTO files VALUES (?,?,?,?,?,?,?,'pending')").run('reservation',owner+'/documents/reservation','reserved','text/plain','documents',QUOTA-48,new Date().toISOString());
+const replies=await Promise.all([a.instance.fetch(request('POST','/files','x')),a.instance.fetch(request('POST','/files','x'))]);assert.deepEqual(replies.map(x=>x.status).sort(),[201,409]);
+await assert.rejects(a.instance.fetch(request('POST','/files',new Uint8Array(MAX_FILE+1))),/file_too_large/);
+const video=account();const videoRequest=request('POST','/files','video');videoRequest.headers.set('X-File-Name','movie.mp4');videoRequest.headers.set('Content-Type','application/octet-stream');assert.equal((await (await video.instance.fetch(videoRequest)).json()).category,'videos');
+const recovery=account();recovery.db.prepare("INSERT INTO files VALUES (?,?,?,?,?,?,?,'pending')").run('stale',owner+'/documents/stale','stale','text/plain','documents',123,new Date().toISOString());await recovery.instance.alarm();assert.equal(recovery.instance.usage(),0);
+const broken=account();broken.env.FILES.put=async()=>{throw Error('network')};assert.equal((await broken.instance.fetch(request('POST','/files','hello'))).status,503);assert.equal(broken.instance.usage(),0);
+const savedFetch=globalThis.fetch;let forwarded=0;
+globalThis.fetch=async url=>String(url).includes('/auth/v1/user')?Response.json({id:owner}):Response.json(42);
+const gatewayEnv={SUPABASE_URL:'https://supabase.test',SUPABASE_KEY:'public',ACCOUNTS:{idFromName:id=>id,get(id){assert.equal(id,owner);return{fetch:async req=>{forwarded++;return a.instance.fetch(req)}}}}};
+assert.equal((await worker.fetch(new Request('https://worker.test/files'),gatewayEnv)).status,401);
+assert.equal((await worker.fetch(new Request('https://worker.test/files',{headers:{Origin:'https://evil.test',Authorization:'Bearer valid'}}),gatewayEnv)).status,403);
+r=await worker.fetch(new Request('https://worker.test/files',{headers:{Origin:'https://or-nuna.com',Authorization:'Bearer valid','X-Owner':other}}),gatewayEnv);assert.equal(r.status,200);assert.equal(r.headers.get('Access-Control-Allow-Origin'),'https://or-nuna.com');assert.equal(forwarded,1);
+globalThis.fetch=async()=>new Response('bad',{status:401});assert.equal((await worker.fetch(new Request('https://worker.test/files',{headers:{Authorization:'Bearer invalid'}}),gatewayEnv)).status,401);globalThis.fetch=savedFetch;
+console.log('Verified: quota boundary and concurrent reservations, owner isolation, auth, origin, file size, rollback, recovery, private download.');

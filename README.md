@@ -108,3 +108,13 @@ Las funciones que aún no están conectadas (pagos, voz, redes, plugins, llaves 
 ## Claude (Anthropic)
 
 `NUNA_ANTHROPIC_MODEL=claude-opus-5-5`. Claude Opus 5 / 5.5, Fable 5 y Sonnet 5.5 siempre razonan antes de responder: `NUNA_ANTHROPIC_EFFORT` (por defecto `low`, para respuestas rápidas en el chat) controla cuánto, y `max_tokens` es 16000 porque el razonamiento cuenta dentro de ese límite. Si los filtros de seguridad de Anthropic rechazan una pregunta, la API la reintenta en el modelo de respaldo que Anthropic recomienda (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`); si todo el recorrido la rechaza, NUNA muestra «El proveedor bloqueó esta solicitud».
+
+### Private account files (Cloudflare R2)
+
+`cloudflare/worker.mjs` verifies the Supabase session with Auth before routing to one SQLite-backed Durable Object per account. Only the Worker has a binding to the private `nuna-private-files` bucket; no R2 credentials or public bucket URLs are exposed. The Supabase publishable key in the Worker configuration is public by design.
+
+Each account receives a **15,000,000,000-byte total file allowance**, not an additional monthly allowance. The server counts existing Supabase files plus ready and pending R2 uploads. SQLite reserves upload bytes synchronously before the R2 write, preventing concurrent uploads from exceeding the quota. Failed writes release reservations after confirmed cleanup; an alarm reconciles interrupted writes. Files currently remain limited to **10 MiB per upload**. Chats and projects retain their existing Supabase persistence and separate chat limits. Generation and inline media playback are separate features.
+
+Existing Supabase files stay readable. After releasing the R2 frontend, remove only the `nuna_files_upload` INSERT policy using `supabase/r2-cutover.sql`; this closes the old upload route without deleting files or changing their download permissions. Apply `supabase/account-file-usage.sql` before release. The usage RPC runs with the signed-in user's privileges and RLS.
+
+Validation: `node cloudflare/worker.test.mjs` and `node cloudflare/frontend.test.cjs`. Deploy the Worker with pinned Wrangler 4.148.0 using `cloudflare/wrangler.jsonc`, then verify authenticated upload, reload, download, and the private bucket before releasing the frontend. Cloudflare Workers and Durable Objects have their own request/compute/storage allowances; R2 file storage pricing alone is not the entire infrastructure bill.
