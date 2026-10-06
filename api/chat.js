@@ -14,10 +14,11 @@ module.exports = async function handler(req, res) {
     return res.status(status).json(provider ? { error, provider } : { error });
   };
   if (req.method !== 'POST') return fail(405, 'method_not_allowed');
-  const accessCode = process.env.NUNA_ACCESS_CODE;
+  // Trim so a stray space or newline pasted into Vercel or the code field does not break the comparison.
+  const accessCode = (process.env.NUNA_ACCESS_CODE || '').trim();
   if (!accessCode) return fail(503, 'access_code_missing');
   if (accessCode.length < 16) return fail(503, 'access_code_short');
-  if (!authorized(req.headers['x-nuna-access-code'], accessCode)) {
+  if (!authorized(String(req.headers['x-nuna-access-code'] || '').trim(), accessCode)) {
     return fail(401, 'unauthorized');
   }
   let body = req.body;
