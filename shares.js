@@ -16,7 +16,7 @@ shareButton.onclick=async()=>{
  const status=document.createElement('p');status.className='share-status';status.setAttribute('role','status');shareDialog.append(status);shareDialog.showModal();
  if(!owner||!cloudMode()){status.textContent=sharedText('Inicia sesión para crear un enlace compartido.','Sign in to create a shared link.');shareAction(sharedText('Iniciar sesión','Sign in'),()=>{shareDialog.close();openAuth('login');});return;}
  if(!snapshot.length){status.textContent=sharedText('Este chat todavía no tiene mensajes para compartir.','This chat has no messages to share yet.');return;}
- let row;try{const {data,error}=await authClient.from('shared_conversations').select('id,revoked').eq('owner',owner).eq('conversation_id',chat.id).maybeSingle();if(error)throw error;row=data;}catch{status.textContent=sharedText('No se pudo consultar el enlace. Inténtalo de nuevo.','Could not check the link. Try again.');return;}
+ let row;try{const {data,error}=await authClient.from('shared_conversations').select('id,revoked').eq('owner',owner).eq('conversation_id',chat.id).eq('revoked',false).order('created_at',{ascending:false}).limit(1).maybeSingle();if(error)throw error;row=data;}catch{status.textContent=sharedText('No se pudo consultar el enlace. Inténtalo de nuevo.','Could not check the link. Try again.');return;}
  if(authUser?.id!==owner||!shareDialog.open)return;
  async function showLink(id){
   const url=location.origin+'/shared.html#'+id;const input=document.createElement('input');input.readOnly=true;input.value=url;input.setAttribute('aria-label',sharedText('Enlace compartido','Shared link'));shareDialog.append(input);
@@ -30,7 +30,7 @@ shareButton.onclick=async()=>{
   const b=e.currentTarget;b.disabled=true;status.textContent=sharedText('Creando enlace…','Creating link…');
   if(authUser?.id!==owner){shareDialog.close();return;}
   const record={id:crypto.randomUUID(),owner,conversation_id:chat.id,title:String(title).slice(0,160),messages:snapshot,revoked:false};
-  const {error}=row?await authClient.from('shared_conversations').update(record).eq('id',row.id).eq('owner',owner):await authClient.from('shared_conversations').insert(record);
+  const {error}=await authClient.from('shared_conversations').insert(record);
   if(error){b.disabled=false;status.textContent=sharedText('No se pudo crear el enlace. Prueba de nuevo; el chat debe ocupar menos de 1 MB.','Could not create the link. Try again; the chat must be under 1 MB.');return;}
   if(authUser?.id!==owner||!shareDialog.open)return;b.remove();status.textContent=sharedText('Enlace listo. Tú eliges dónde enviarlo.','Link ready. Choose where to send it.');await showLink(record.id);
  });
