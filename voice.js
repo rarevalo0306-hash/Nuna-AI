@@ -123,7 +123,7 @@ function renderVoice() {
   voiceEnd.setAttribute('aria-label', endLabel); voiceEnd.title = endLabel;
   voiceEnd.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   voiceStatus.textContent = voiceMessage || vText('Lista para probar · micrófono apagado', 'Ready to test · microphone off');
-  voiceNote.textContent = vText('Tu audio se procesa para responderte y las transcripciones se guardan en este chat. La voz es generada por IA. Este navegador termina la prueba a los 5 minutos; el audio tiene costo.', 'Your audio is processed to respond and transcripts are saved in this chat. The voice is AI generated. This browser ends the test after 5 minutes; audio has a cost.');
+  voiceNote.textContent = vText('Tu audio se procesa para responderte y las transcripciones se guardan en este chat. La voz es generada por IA. NUNA limita cada sesión a 5 minutos; el audio tiene costo.', 'Your audio is processed to respond and transcripts are saved in this chat. The voice is AI generated. NUNA limits each session to 5 minutes; audio has a cost.');
 }
 function voiceSetStatus(es, en) { voiceMessage = vText(es, en); renderVoice(); }
 function voiceFailure(error) {

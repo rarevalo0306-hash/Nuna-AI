@@ -20,7 +20,7 @@ async function connectRealtimeSocket({signal,generation}){
  const send=event=>{if(active()&&socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify(event))};
  const silence=()=>{for(const node of playing){node.onended=null;try{node.stop()}catch{};node.disconnect()}playing.clear();nextAudio=0;voiceSpeaking=false};
  const close=()=>{if(closed)return;closed=true;signal.removeEventListener('abort',close);silence();if(capture){capture.port.onmessage=null;capture.disconnect()}source?.disconnect();stream?.getTracks().forEach(track=>track.stop());if(socket){socket.onmessage=socket.onclose=socket.onerror=null;socket.close()}releaseRealtimeAudio()};
- const fail=()=>{if(!active())return;stopRealVoice();voiceSetStatus('La conexión de voz terminó. Vuelve a conectar.','The voice connection ended. Please reconnect.')};
+ const fail=(reason='network')=>{if(!active())return;stopRealVoice();const messages={network:['Se perdió la conexión de audio. Vuelve a conectar.','The audio connection was lost. Please reconnect.'],upload:['La red no pudo enviar el audio a tiempo. Vuelve a conectar.','The network could not send audio in time. Please reconnect.'],playback:['No se pudo reproducir el audio. Vuelve a conectar.','Audio could not be played. Please reconnect.'],service:['El servicio cerró la sesión de audio. Vuelve a conectar.','The service closed the audio session. Please reconnect.']};const [es,en]=messages[reason]||messages.network;voiceSetStatus(es,en)};
  signal.addEventListener('abort',close,{once:true});
  try{
   const headers=await aiAuthHeaders(),token=await authAccessToken();if(token)headers.Authorization='Bearer '+token;
@@ -35,7 +35,7 @@ async function connectRealtimeSocket({signal,generation}){
   source=context.createMediaStreamSource(stream);capture=new AudioWorkletNode(context,'nuna-capture');source.connect(capture);capture.connect(context.destination);
   capture.port.onmessage=event=>{
    if(!active()||!started||!ready||muted)return;
-   if(socket.bufferedAmount>1048576){fail();return}
+   if(socket.bufferedAmount>1048576){fail('upload');return}
    send({type:'input_audio_buffer.append',audio:voicePCMBase64(event.data)});
   };
   voiceSetStatus('Abriendo el canal de audio…','Opening the audio channel…');
@@ -49,14 +49,14 @@ async function connectRealtimeSocket({signal,generation}){
    timer=setTimeout(()=>finish(Object.assign(new Error('voice_network_timeout'),{code:'voice_network_timeout'})),12000);
    signal.addEventListener('abort',abort,{once:true});
    socket.onerror=()=>finish(Object.assign(new Error('voice_network_timeout'),{code:'voice_network_timeout'}));
-   socket.onclose=()=>ready?fail():finish(Object.assign(new Error('voice_network_timeout'),{code:'voice_network_timeout'}));
+   socket.onclose=event=>ready?fail(event.code===1000||event.code===1008?'service':'network'):finish(Object.assign(new Error('voice_network_timeout'),{code:'voice_network_timeout'}));
    socket.onmessage=message=>{
     if(!active())return;
     let event;try{event=JSON.parse(message.data)}catch{return}
     if(event.type==='session.created'){
      ready=true;
      voiceBase.slice(-8).filter(([role,text])=>['user','assistant'].includes(role)&&text).forEach(([role,text])=>send({type:'conversation.item.create',item:{type:'message',role,content:[{type:role==='user'?'input_text':'output_text',text:String(text).slice(0,4000)}]}}));
-     socket.onerror=fail;voiceSetStatus('Conectado · Te escucho','Connected · Listening');finish();return;
+     socket.onerror=()=>fail();voiceSetStatus('Conectado · Te escucho','Connected · Listening');finish();return;
     }
     if(event.type==='error'&&!ready){finish(Object.assign(new Error('voice'),{code:'provider_request'}));return}
     if(event.type==='input_audio_buffer.speech_started'){
@@ -77,7 +77,7 @@ async function connectRealtimeSocket({signal,generation}){
       if(itemId!==event.item_id){itemId=event.item_id;itemStart=when;itemSamples=0}itemSamples+=samples.length;outputDone=false;
       playing.add(node);node.onended=()=>{playing.delete(node);node.disconnect();if(active()&&playing.size===0&&outputDone){voiceSpeaking=false;voiceSetStatus(muted?'Micrófono silenciado':'Te escucho',muted?'Microphone muted':'Listening')}};
       voiceSpeaking=true;voiceSetStatus('NUNA está hablando…','NUNA is speaking…');node.start(when);
-     }catch{fail()}
+     }catch{fail('playback')}
      return;
     }
     if(event.type==='response.output_audio.done'){outputDone=true;if(!playing.size){voiceSpeaking=false;voiceSetStatus('Te escucho','Listening')}return}
