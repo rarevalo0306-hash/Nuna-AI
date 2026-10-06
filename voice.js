@@ -31,14 +31,19 @@ for (const button of [voiceStart, voiceCheck, voiceMute, voiceEnd]) { button.typ
 voiceMute.className = 'voice-round'; voiceMute.style.cssText = '';
 voiceEnd.className = 'voice-round voice-hangup'; voiceEnd.style.cssText = '';
 voiceMute.hidden = voiceEnd.hidden = true;
-voiceActions.append(voiceMute, voiceEnd);
+const voiceWave = document.createElement('span');
+voiceWave.className = 'voice-wave'; voiceWave.setAttribute('aria-hidden','true');
+voiceWave.innerHTML = '<i></i><i></i><i></i><i></i><i></i>';
+voiceActions.append(voiceMute, voiceWave, voiceEnd);
+voiceActions.hidden = true;
+document.querySelector('.composer-controls').insertBefore(voiceActions, document.getElementById('voice-open'));
 const voiceAudio = document.createElement('audio');
 voiceAudio.autoplay = true;
 voiceAudio.controls = true;
 voiceAudio.setAttribute('playsinline', '');
 voiceAudio.hidden = true;
 voiceAudio.style.cssText = 'width:100%;height:36px;margin-top:8px';
-voiceDialog.append(voiceToolbar, voiceStatus, voiceNote, voiceActions, voiceAudio);
+voiceDialog.append(voiceToolbar, voiceStatus, voiceNote, voiceAudio);
 oldVoiceDialog.remove();
 document.querySelector('.composer-area').prepend(voiceDialog);
 const voiceStyle = document.createElement('style');
@@ -58,6 +63,24 @@ voiceStyle.textContent = `
 #voice-dialog.voice-inline .voice-round[aria-pressed=true]{background:var(--accent);color:var(--bg)}
 #voice-dialog.voice-inline .voice-hangup{background:#e5484d;border-color:#e5484d;color:white}
 #voice-dialog.voice-inline .voice-round svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+.composer-controls .voice-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.composer-controls .voice-actions[hidden]{display:none}
+.composer-controls .voice-round{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;padding:0;border:1px solid var(--border);background:var(--accent);color:var(--bg);cursor:pointer}
+.composer-controls .voice-round:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.composer-controls .voice-round[aria-pressed=true]{background:var(--side);color:var(--muted)}
+.composer-controls .voice-hangup{background:var(--side);color:var(--text)}
+.composer-controls .voice-round svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;animation:none;filter:none}
+.voice-wave{display:flex;align-items:center;gap:3px;height:30px;padding:0 5px;color:var(--accent)}
+.voice-wave i{width:3px;height:6px;border-radius:3px;background:currentColor}
+.voice-wave i:nth-child(2),.voice-wave i:nth-child(4){height:13px}.voice-wave i:nth-child(3){height:20px}
+.voice-actions.speaking .voice-wave i{animation:nuna-wave .7s ease-in-out infinite alternate}
+.voice-actions.speaking .voice-wave i:nth-child(2n){animation-delay:-.3s}
+.voice-actions.speaking .voice-round:first-child{animation:nuna-pulse 1.2s ease-in-out infinite}
+@keyframes nuna-wave{from{transform:scaleY(.45)}to{transform:scaleY(1.2)}}
+@keyframes nuna-pulse{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 18%,transparent);opacity:.75}}
+@media(prefers-reduced-motion:reduce){.voice-actions.speaking .voice-wave i,.voice-actions.speaking .voice-round:first-child{animation:none}}
+
 #voice-open[aria-expanded=true]{background:var(--accent);color:var(--bg)}
 @media(max-width:760px){#voice-dialog.voice-inline{padding:10px 12px}#voice-dialog.voice-inline #voice-close{width:44px;height:44px}}
 `;
@@ -65,7 +88,7 @@ document.head.append(voiceStyle);
 const voiceOpen = document.getElementById('voice-open');
 voiceOpen.setAttribute('aria-controls', voiceDialog.id);
 voiceOpen.setAttribute('aria-expanded', 'false');
-let voiceConnection = null, voiceStarting = false, voiceMuted = false, voiceMessage = '';
+let voiceConnection = null, voiceStarting = false, voiceMuted = false, voiceSpeaking = false, voiceMessage = '';
 let voiceChat = null, voiceOwner = null, voiceRecords = [], voiceBase = [], voiceTimers = [], voiceAbort = null, voiceGeneration = 0;
 const vText = (es, en) => lang === 'es' ? es : en;
 function renderVoice() {
@@ -80,7 +103,13 @@ function renderVoice() {
   voiceCheck.disabled = voiceStarting;
   voiceStart.disabled = voiceStarting;
   voiceStart.hidden = running;
-  voiceMute.hidden = !running;
+  voiceActions.hidden = !running && !voiceStarting;
+  voiceOpen.hidden = running || voiceStarting;
+  voiceActions.classList.toggle('speaking', voiceSpeaking);
+  voiceActions.classList.toggle('connecting', voiceStarting);
+  voiceToolbar.hidden = running || voiceStarting;
+  voiceNote.hidden = running;
+  voiceMute.hidden = false; voiceMute.disabled = !running;
   voiceEnd.hidden = !running && !voiceStarting;
   const muteLabel = voiceMuted ? vText('Activar micrófono', 'Unmute microphone') : vText('Silenciar micrófono', 'Mute microphone');
   voiceMute.setAttribute('aria-label', muteLabel); voiceMute.title = muteLabel;
@@ -88,7 +117,7 @@ function renderVoice() {
   voiceMute.setAttribute('aria-pressed', String(voiceMuted));
   const endLabel = vText('Finalizar llamada', 'End call');
   voiceEnd.setAttribute('aria-label', endLabel); voiceEnd.title = endLabel;
-  voiceEnd.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 14v-4c5-5 13-5 18 0v4l-5-1v-3a12 12 0 0 0-8 0v3z"/></svg>';
+  voiceEnd.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   voiceStatus.textContent = voiceMessage || vText('Lista para probar · micrófono apagado', 'Ready to test · microphone off');
   voiceNote.textContent = vText('Prueba para administradores. OpenAI recibe tu audio y las transcripciones se guardan en este chat. La voz es generada por IA. Este navegador termina la prueba a los 5 minutos; el audio tiene costo.', 'Administrator pilot. OpenAI receives your audio and transcripts are saved in this chat. The voice is AI generated. This browser ends the test after 5 minutes; audio has a cost.');
 }
@@ -127,8 +156,8 @@ function receiveVoiceEvent(event) {
     r.text = String(event.transcript || r.text).trim(); storeVoiceRecords();
   } else if (event.type === 'input_audio_buffer.speech_started') voiceSetStatus('Escuchando…', 'Listening…');
   else if (event.type === 'input_audio_buffer.speech_stopped') voiceSetStatus('Preparando respuesta…', 'Preparing reply…');
-  else if (event.type === 'output_audio_buffer.started') voiceSetStatus('NUNA está hablando…', 'NUNA is speaking…');
-  else if (event.type === 'output_audio_buffer.stopped') voiceSetStatus(voiceMuted ? 'Micrófono silenciado' : 'Te escucho', voiceMuted ? 'Microphone muted' : 'Listening');
+  else if (event.type === 'output_audio_buffer.started') {voiceSpeaking=true;voiceSetStatus('NUNA está hablando…', 'NUNA is speaking…');}
+  else if (['output_audio_buffer.stopped','output_audio_buffer.cleared'].includes(event.type)) {voiceSpeaking=false;voiceSetStatus(voiceMuted ? 'Micrófono silenciado' : 'Te escucho', voiceMuted ? 'Microphone muted' : 'Listening');}
   else if (event.type === 'conversation.item.input_audio_transcription.failed') voiceSetStatus('No se pudo transcribir ese turno. Repite lo que dijiste.', 'That turn could not be transcribed. Please repeat it.');
   else if (event.type === 'error') {
     stopRealVoice(); voiceSetStatus('La sesión de voz falló. Puedes volver a conectar.', 'The voice session failed. You can reconnect.');
@@ -152,8 +181,8 @@ const voiceAdapters = {
         stream.getTracks().forEach(track => pc.addTrack(track, stream));
         pc.ontrack = event => {
           voiceAudio.srcObject = event.streams[0] || new MediaStream([event.track]);
-          voiceAudio.hidden = false;
-          voiceAudio.play().catch(() => voiceSetStatus('Pulsa reproducir para escuchar a NUNA.', 'Press play to hear NUNA.'));
+          voiceAudio.hidden = true;
+          voiceAudio.play().catch(() => {voiceAudio.hidden=false;voiceSetStatus('Pulsa reproducir para escuchar a NUNA.', 'Press play to hear NUNA.');});
         };
         channel.onmessage = event => { if (generation !== voiceGeneration) return; try { receiveVoiceEvent(JSON.parse(event.data)); } catch {} };
         channel.onopen = () => {
@@ -183,7 +212,7 @@ function stopRealVoice() {
   voiceTimers.forEach(timer => {clearTimeout(timer);clearInterval(timer);}); voiceTimers=[];
   const connection = voiceConnection; voiceConnection = null; connection?.close();
   storeVoiceRecords();
-  voiceStarting = false; voiceMuted = false;
+  voiceStarting = false; voiceMuted = false; voiceSpeaking = false;
   renderVoice();
 }
 async function startRealVoice() {
