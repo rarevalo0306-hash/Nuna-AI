@@ -198,6 +198,19 @@ async function waitForVoiceChannel(channel,signal){
     if(signal.aborted)aborted();else if(channel.readyState==='open')opened();
   });
 }
+// The SDP is sent only once; include candidates Safari discovers asynchronously.
+async function gatherVoiceCandidates(pc,signal){
+  if(pc.iceGatheringState==='complete')return;
+  return new Promise((resolve,reject)=>{
+    let timer;
+    const clean=()=>{clearTimeout(timer);pc.removeEventListener('icegatheringstatechange',changed);signal.removeEventListener('abort',aborted)};
+    const finish=()=>{clean();resolve()};
+    const changed=()=>{if(pc.iceGatheringState==='complete')finish()};
+    const aborted=()=>{clean();reject(new DOMException('Cancelled','AbortError'))};
+    pc.addEventListener('icegatheringstatechange',changed);signal.addEventListener('abort',aborted,{once:true});timer=setTimeout(finish,3000);
+    if(signal.aborted)aborted();else changed();
+  });
+}
 // Provider adapter: future integrations can return the same connection interface.
 const voiceAdapters = {
   openai: {
@@ -242,10 +255,13 @@ const voiceAdapters = {
           else if(['failed','closed'].includes(pc.connectionState)) finish();
         };
         await pc.setLocalDescription(await pc.createOffer());
+        await gatherVoiceCandidates(pc,signal);
+        voiceSetStatus('Preparando la respuesta de voz…','Preparing the voice response…');
         const response = await fetch('/api/voice',{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({sdp:pc.localDescription.sdp,language:lang,project:projectContextForChat(voiceChat)}),signal});
         const answer = await response.json();
         if (!response.ok) throw Object.assign(new Error('voice'),{code:answer.error});
         if (generation !== voiceGeneration) throw new DOMException('Cancelled','AbortError');
+        voiceSetStatus('Abriendo el canal de audio…','Opening the audio channel…');
         await pc.setRemoteDescription({type:'answer',sdp:answer.sdp});
         await waitForVoiceChannel(channel,signal);
         return {close, mute(value){stream.getAudioTracks().forEach(track => {track.enabled=!value;});}, duration:answer.clientDurationSeconds || 300};
