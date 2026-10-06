@@ -256,7 +256,7 @@ async function startRealVoice() {
   } finally {clearTimeout(connectTimeout);if(generation===voiceGeneration){voiceStarting=false;renderVoice();}}
 }
 function closeInlineVoice() { stopRealVoice(); voiceDialog.hidden=true; voiceOpen.setAttribute('aria-expanded','false');voiceMessage='';renderVoice();voiceOpen.focus(); }
-voiceOpen.onclick=()=>{if(!voiceDialog.hidden){closeInlineVoice();return;}voiceDialog.hidden=false;voiceOpen.setAttribute('aria-expanded','true');renderVoice();startRealVoice();};
+voiceOpen.onclick=()=>{if(voiceStarting||voiceConnection)return;voiceDialog.hidden=false;voiceOpen.setAttribute('aria-expanded','true');renderVoice();startRealVoice();};
 voiceClose.onclick=closeInlineVoice;
 voiceStart.onclick=startRealVoice;
 voiceCheck.onclick=async()=>{voiceCheck.disabled=true;voiceSetStatus('Comprobando acceso a OpenAI…','Checking OpenAI access…');try{const response=await fetch('/api/voice',{headers:await aiAuthHeaders(),signal:AbortSignal.timeout(15000)});const data=await response.json();if(!response.ok)throw Object.assign(new Error('voice'),{code:data.error});voiceSetStatus('OpenAI disponible · pulsa comenzar para probar el audio.','OpenAI available · press start to test audio.');}catch(error){const [es,en]=voiceFailure(error);voiceSetStatus(es,en);}finally{voiceCheck.disabled=false;}};
