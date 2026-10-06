@@ -75,12 +75,12 @@ voiceStyle.textContent = `
 .voice-wave svg{width:64px;height:32px;stroke:currentColor;stroke-width:2.5;fill:none;stroke-linecap:round;animation:none;filter:none}
 .voice-wave .wave-base{opacity:.2}
 .voice-wave .voice-swimmer{stroke-width:3;transform-origin:center;transform-box:fill-box}
-.voice-actions.speaking .voice-swimmer{animation:nuna-swim 1.8s ease-in-out infinite}
-@keyframes nuna-swim{0%,100%{translate:-6px 0;rotate:-3deg}50%{translate:6px -3px;rotate:3deg}}
+.voice-actions .voice-swimmer{animation:nuna-swim 2s ease-in-out infinite}
+@keyframes nuna-swim{0%,100%{translate:0 4px;rotate:-3deg}50%{translate:0 -5px;rotate:3deg}}
 .voice-wave .wave-flow{opacity:0;stroke-dasharray:22 12;stroke-dashoffset:0}
 .voice-actions.speaking .wave-flow{opacity:1;animation:nuna-sea-flow 1.1s linear infinite}
 @keyframes nuna-sea-flow{to{stroke-dashoffset:-34}}
-@media(prefers-reduced-motion:reduce){.voice-actions.speaking .wave-flow{animation:none;stroke-dasharray:none}.voice-actions.speaking .voice-swimmer{animation:none}}
+@media(prefers-reduced-motion:reduce){.voice-actions.speaking .wave-flow{animation:none;stroke-dasharray:none}.voice-actions .voice-swimmer{animation:none}}
 #voice-open[aria-expanded=true]{background:var(--accent);color:var(--bg)}
 @media(max-width:760px){#voice-dialog.voice-inline{padding:10px 12px}#voice-dialog.voice-inline #voice-close{width:44px;height:44px}}
 `;
