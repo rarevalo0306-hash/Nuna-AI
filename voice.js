@@ -196,7 +196,7 @@ const voiceAdapters = {
           if (['failed','disconnected','closed'].includes(pc.connectionState)) { stopRealVoice(); voiceSetStatus('La conexión de voz terminó.', 'Voice connection ended.'); }
         };
         await pc.setLocalDescription(await pc.createOffer());
-        const response = await fetch('/api/voice',{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({sdp:pc.localDescription.sdp,language:lang}),signal});
+        const response = await fetch('/api/voice',{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({sdp:pc.localDescription.sdp,language:lang,project:projectContextForChat(voiceChat)}),signal});
         const answer = await response.json();
         if (!response.ok) throw Object.assign(new Error('voice'),{code:answer.error});
         if (generation !== voiceGeneration) throw new DOMException('Cancelled','AbortError');

@@ -59,16 +59,18 @@ function openProjectCreator(){
   const validate=()=>{create.disabled=!input.value.trim()||!description.value.trim();};input.oninput=description.oninput=validate;
   const close=()=>{form.remove();document.getElementById('project-add').setAttribute('aria-expanded','false');document.getElementById('project-add').focus();};
   cancel.onclick=close;form.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close();}};
-  form.onsubmit=e=>{e.preventDefault();const name=input.value.trim(),purpose=description.value.trim();if(!name||!purpose)return;projects.push({id:crypto.randomUUID(),name:Array.from(name).slice(0,80).join(''),description:Array.from(purpose).slice(0,1000).join('')});currentProject=projects[projects.length-1].id;active=null;close();persistProjects();render();};
-  actions.append(cancel,create);form.append(label,descriptionLabel,actions);document.getElementById('project-list').before(form);document.getElementById('project-add').setAttribute('aria-expanded','true');input.focus();
+  form.onsubmit=e=>{e.preventDefault();const name=input.value.trim(),purpose=description.value.trim();if(!name||!purpose)return;projects.push({id:crypto.randomUUID(),name:Array.from(name).slice(0,80).join(''),description:Array.from(purpose).slice(0,1000).join(''),provider:modelSelect.value});currentProject=projects[projects.length-1].id;active=null;close();persistProjects();render();};
+  const modelLabel=document.createElement('label');modelLabel.textContent=es?'Modelo para los chats del proyecto':'Model for project chats';const modelSelect=document.createElement('select');const follow=document.createElement('option');follow.value='';follow.textContent=es?'Usar el modelo elegido en el chat':'Use the model selected in chat';modelSelect.append(follow);providerModels.forEach(m=>{const option=document.createElement('option');option.value=m.id;option.textContent=m.name;modelSelect.append(option)});modelLabel.append(modelSelect);actions.append(cancel,create);form.append(label,descriptionLabel,modelLabel,actions);document.getElementById('project-list').before(form);document.getElementById('project-add').setAttribute('aria-expanded','true');input.focus();
 }
 const projectCreateStyle=document.createElement('style');projectCreateStyle.textContent=`
 .project-create-form{padding:12px;margin:8px 0;background:var(--card);border:1px solid var(--border);border-radius:12px}
 .project-create-form label{display:block;font-size:12px;color:var(--muted)}
-.project-create-form input,.project-create-form textarea{display:block;box-sizing:border-box;width:100%;min-height:40px;margin-top:8px;padding:8px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font:inherit;font-size:14px}
+.project-create-form input,.project-create-form textarea,.project-create-form select{display:block;box-sizing:border-box;width:100%;min-height:40px;margin-top:8px;padding:8px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font:inherit;font-size:14px}
 .project-create-form label+label{margin-top:12px}.project-create-form textarea{resize:vertical;line-height:1.4}.project-description{font-size:12px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere;white-space:pre-wrap}
 .project-create-form>div{display:flex;gap:8px;margin-top:10px}
 .project-create-form button{flex:1;min-height:40px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--side);color:var(--text);font-size:12px}
 .project-create-form .project-create-submit{background:var(--accent);color:var(--bg);border-color:var(--accent)}
 .project-create-form button:disabled{opacity:.45;cursor:default}
 `;document.head.append(projectCreateStyle);
+
+function projectContextForChat(chat){const p=projects.find(p=>p.id===(chat?.project||currentProject));return p?{name:String(p.name||'').slice(0,80),description:String(p.description||'').slice(0,1000)}:null;}

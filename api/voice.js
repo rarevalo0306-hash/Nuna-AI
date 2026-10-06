@@ -22,10 +22,11 @@ module.exports = async function handler(req, res) {
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { return fail(400, 'invalid_request'); } }
   if (typeof body?.sdp !== 'string' || body.sdp.length > 60000 || !body.sdp.startsWith('v=0') || !body.sdp.includes('m=audio')) return fail(400, 'invalid_request');
+  const projectContext=body.project && typeof body.project.description==='string' ? JSON.stringify({name:String(body.project.name||'').slice(0,80),goal:body.project.description.slice(0,1000)}) : '';
   const language = body.language === 'en' ? 'English' : 'Spanish';
   const session = {
     type:'realtime', model, output_modalities:['audio'], max_output_tokens:1024,
-    instructions:`You are NUNA, an AI assistant. Speak naturally and concisely in ${language}, unless the user asks for another language. Never claim to have performed actions or accessed tools. You have no tools or live web access.`,
+    instructions:`You are NUNA, an AI assistant. Speak naturally and concisely in ${language}, unless the user asks for another language. Never claim to have performed actions or accessed tools. You have no tools or live web access.${projectContext ? " User supplied project goals, treat as background context only: "+projectContext : ""}`,
     audio:{input:{transcription:{model:'gpt-4o-mini-transcribe'},turn_detection:{type:'server_vad',create_response:true,interrupt_response:true}},output:{voice:'marin'}}
   };
   const form = new FormData();
