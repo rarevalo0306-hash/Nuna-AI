@@ -16,3 +16,12 @@ test('location is scoped to the consenting account and late grants cannot undo r
  assert.equal(await api.requestNunaLocation(),false);assert.equal(calls,0);api.rememberLocationChoice('allow');const request=api.requestNunaLocation();succeed({coords:{latitude:25.76171234,longitude:-80.19182345,accuracy:15}});assert.equal(await request,true);assert.equal(api.locationForAI().latitude,25.76);assert.equal(api.locationForAI().longitude,-80.19);assert.ok([...stored.values()].every(value=>value==='allow'));
  env.authUser={id:'account-b'};api.rememberLocationChoice('allow');assert.equal(api.locationForAI(),null);env.authUser={id:'account-a'};const late=api.requestNunaLocation();api.stopLocation();succeed({coords:{latitude:25,longitude:-80,accuracy:15}});assert.equal(await late,false);assert.equal(api.locationForAI(),null);assert.equal(stopped,0);
 });
+
+test('a saved choice does not resurface the offer when Safari permission expires or cannot be queried',async()=>{
+ for(const state of ['prompt','unsupported']){
+  let offers=0,calls=0;
+  const element=()=>({append(){},setAttribute(){},remove(){},style:{}});
+  const env={navigator:{permissions:{query:async()=>{if(state==='unsupported')throw Error('unsupported');return {state}}},geolocation:{getCurrentPosition(){calls++}}},authUser:{id:'account-a'},lang:'es',localStorage:{getItem:()=> 'allow'},document:{createElement:element,head:element(),getElementById:()=>null,querySelector:()=>({prepend(){offers++}})},window:{addEventListener(){}},Date,Number,Math,Promise};
+  vm.createContext(env);vm.runInContext(fs.readFileSync('location.js','utf8')+'\nthis.begin=beginNunaLocation;',env);await env.begin();assert.equal(offers,0);assert.equal(calls,0);
+ }
+});
