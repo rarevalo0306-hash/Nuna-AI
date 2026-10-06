@@ -96,3 +96,7 @@ body{--nuna-font-scale:1}body[data-font-size=small]{--nuna-font-scale:.9}body[da
 .model-status.ok{border-color:var(--accent);color:var(--accent)}
 #settings-dialog .model-status.missing{border-style:dashed}
 #settings-dialog .model-card .model-status{display:inline-block}
+#ai-demo-hint{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 8px;padding:8px 8px 8px 14px;border:1px solid var(--border);border-radius:16px;background:var(--card);font-size:13px;color:var(--muted)}
+#ai-demo-hint[hidden]{display:none}
+#ai-demo-hint button{min-height:36px;padding:0 14px;border:1px solid var(--accent);border-radius:18px;background:transparent;color:var(--accent);font-size:13px}
+#ai-demo-hint button:hover{background:var(--hover)}

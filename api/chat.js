@@ -29,7 +29,11 @@ async function listProviderModels(provider, key) {
       ? (data.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => String(m.name || '').replace(/^models\//, ''))
       : (data.data || []).map(m => String(m.id || ''));
     // Leave out models that cannot hold a text chat (embeddings, audio, images, moderation).
-    return [...new Set(names)].filter(n => /^[\w.:\/-]{1,100}$/.test(n) && !/embed|tts|whisper|dall-e|moderation|audio|realtime|transcribe|image|imagen|veo|search|aqa/i.test(n)).slice(0, 40);
+    // Gemma rejects the system instruction this handler sends; legacy completion and agent-only models cannot hold this chat.
+    const usable = [...new Set(names)].filter(n => /^[\w.:\/-]{1,100}$/.test(n) && !/embed|tts|whisper|dall-e|moderation|audio|realtime|transcribe|image|imagen|veo|search|aqa|gemma|davinci|babbage|instruct|sora|computer-use|deep-research/i.test(n));
+    // Put the usual chat families first so the shortened list in the UI shows them.
+    const rank = n => (/(^|[-_.])(flash|mini|haiku|chat|turbo|plus)([-_.]|$)/i.test(n) ? 0 : /pro|sonnet|opus|gpt|grok|qwen|deepseek|claude|gemini/i.test(n) ? 1 : 2) + (/preview|exp|latest|\d{4}-\d{2}-\d{2}|-\d{3}$/i.test(n) ? 0.5 : 0);
+    return usable.sort((a, b) => rank(a) - rank(b)).slice(0, 40);
   } catch {
     return [];
   }
