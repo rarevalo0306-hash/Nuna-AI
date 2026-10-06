@@ -12,7 +12,7 @@ function refreshProjects(){
  projects.forEach(p=>{
   const branch=document.createElement('div');branch.className='project-branch';
   const button=document.createElement('button');button.className='project-tree-toggle';button.textContent=(expandedProjects.has(p.id)?'▾ ':'▸ ')+p.name;button.setAttribute('aria-expanded',String(expandedProjects.has(p.id)));button.classList.toggle('active',currentProject===p.id);
-  button.onclick=()=>{currentProject=p.id;currentSection=null;if(expandedProjects.has(p.id))expandedProjects.delete(p.id);else expandedProjects.add(p.id);render()};const heading=document.createElement('div');heading.className='project-tree-heading';const removeProject=document.createElement('button');removeProject.className='project-delete';removeProject.textContent='×';removeProject.setAttribute('aria-label',(es?'Borrar proyecto ':'Delete project ')+p.name);removeProject.onclick=()=>deleteProject(p,removeProject);heading.append(button,removeProject);branch.append(heading);
+  button.onclick=()=>{currentProject=p.id;currentSection=null;if(expandedProjects.has(p.id))expandedProjects.delete(p.id);else expandedProjects.add(p.id);render()};const heading=document.createElement('div');heading.className='project-tree-heading';const removeProject=document.createElement('button');removeProject.className='project-delete';removeProject.textContent='⋯';removeProject.setAttribute('aria-label',(es?'Opciones del proyecto ':'Project options for ')+p.name);removeProject.setAttribute('aria-haspopup','dialog');removeProject.setAttribute('aria-expanded','false');removeProject.onclick=()=>openProjectActions(p,removeProject);heading.append(button,removeProject);branch.append(heading);
   if(expandedProjects.has(p.id)){
    const children=document.createElement('div');children.className='project-tree-children';
    const direct=document.createElement('div');direct.className='project-direct-chats';projectChatContainers.set(p.id,direct);children.append(direct);
@@ -187,3 +187,26 @@ const projectLayoutFix=document.createElement('style');projectLayoutFix.textCont
 #project-list .history-row>button:first-of-type{width:auto;flex:1 1 0;min-width:0}
 #project-list .section-tree-toggle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 `;document.head.append(projectLayoutFix);
+
+let closeProjectActions=null;
+function openProjectActions(project,anchor){
+ if(closeProjectActions){const same=anchor.getAttribute('aria-expanded')==='true';closeProjectActions();if(same)return;}
+ closeChatActions?.();const es=lang==='es',box=document.createElement('div');box.className='chat-actions-menu';box.setAttribute('role','dialog');box.setAttribute('aria-label',es?'Opciones del proyecto':'Project options');document.body.append(box);anchor.setAttribute('aria-expanded','true');
+ function position(){const r=anchor.getBoundingClientRect(),b=box.getBoundingClientRect();box.style.left=Math.max(8,Math.min(r.right+6,innerWidth-b.width-8))+'px';box.style.top=Math.max(8,Math.min(r.top,innerHeight-b.height-8))+'px';}
+ function close(){box.remove();anchor.setAttribute('aria-expanded','false');document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',key,true);window.removeEventListener('resize',close);window.removeEventListener('scroll',close,true);closeProjectActions=null;if(anchor.isConnected)anchor.focus();}
+ function outside(e){if(!box.contains(e.target)&&!anchor.contains(e.target))close();}
+ function key(e){if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close();}}
+ const edit=document.createElement('button');edit.type='button';edit.textContent=es?'Editar nombre':'Edit name';edit.onclick=()=>{
+  box.replaceChildren();const form=document.createElement('form');form.className='project-rename-form';const label=document.createElement('label');label.textContent=es?'Nombre del proyecto':'Project name';const input=document.createElement('input');input.type='text';input.maxLength=80;input.required=true;input.value=project.name;label.append(input);
+  const actions=document.createElement('div'),cancel=document.createElement('button'),saveName=document.createElement('button');cancel.type='button';cancel.textContent=es?'Cancelar':'Cancel';cancel.onclick=close;saveName.type='submit';saveName.textContent=es?'Guardar':'Save';input.oninput=()=>saveName.disabled=!input.value.trim();
+  form.onsubmit=e=>{e.preventDefault();if(!input.value.trim())return;project.name=Array.from(input.value.trim()).slice(0,80).join('');project.updatedAt=new Date().toISOString();close();persistProjects();render();};actions.append(cancel,saveName);form.append(label,actions);box.append(form);position();input.focus();input.select();
+ };
+ const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent=es?'Borrar':'Delete';remove.onclick=()=>{close();deleteProject(project,anchor);};box.append(edit,remove);position();edit.focus();closeProjectActions=close;
+ document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',key,true);window.addEventListener('resize',close);window.addEventListener('scroll',close,true);
+}
+const renameStyle=document.createElement('style');renameStyle.textContent=`
+#project-list .project-tree-heading .project-delete{font-size:22px}
+.project-rename-form{padding:10px}.project-rename-form label{font-size:12px;color:var(--muted)}
+.project-rename-form input{box-sizing:border-box;width:100%;margin:8px 0 10px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit;font-size:14px}
+.project-rename-form>div{display:flex;gap:6px}.project-rename-form button{width:auto;flex:1;text-align:center;border:1px solid var(--border)}
+`;document.head.append(renameStyle);
