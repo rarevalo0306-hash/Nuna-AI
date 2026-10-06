@@ -159,6 +159,23 @@ function showAuth() {
     authDialog.append(google, divider)
   }
 
+  if (authMode === 'login' && passkeySupported()) {
+    const passkey = document.createElement('button')
+    passkey.type = 'button'
+    passkey.className = 'auth-google'
+    passkey.textContent = authText('Entrar con llave de acceso', 'Sign in with passkey')
+    passkey.onclick = async () => {
+      passkey.disabled = true
+      try {
+        const { error } = await authClient.auth.signInWithPasskey()
+        if (error) throw error
+        authDialog.close()
+      } catch (error) { say(securityError(error)) }
+      finally { passkey.disabled = false }
+    }
+    authDialog.append(passkey)
+  }
+
   const form = document.createElement('form')
   form.className = 'auth-form'
   function field(label, type, name, autocomplete) {
@@ -638,7 +655,7 @@ async function initAuth() {
     ])
     if (Number.isInteger(config.dailyLimit)) authDailyLimit = config.dailyLimit
     if (config.supabase && sdk) {
-      authClient = window.supabase.createClient(config.supabase.url, config.supabase.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'nuna-auth' } })
+      authClient = window.supabase.createClient(config.supabase.url, config.supabase.key, { auth: { experimental: { passkey: true }, persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'nuna-auth' } })
       // Offer Google only when it is actually enabled in Supabase. An open form is rebuilt only if nothing was typed yet.
       fetch(config.supabase.url + '/auth/v1/settings', { headers: { apikey: config.supabase.key }, signal: AbortSignal.timeout(10000) })
         .then(r => r.json()).then(s => {
