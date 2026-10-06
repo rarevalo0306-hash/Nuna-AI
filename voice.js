@@ -42,7 +42,7 @@ voiceAudio.autoplay = true;
 voiceAudio.controls = false;
 const voiceListen = document.createElement('button');
 voiceListen.type='button';voiceListen.hidden=true;voiceListen.textContent='Escuchar a NUNA';
-voiceListen.onclick=()=>voiceAudio.play().then(()=>{voiceListen.hidden=true;voiceSetStatus('Te escucho','Listening');}).catch(()=>voiceSetStatus('No se pudo reproducir el audio. Intenta otra vez.','Audio could not play. Please try again.'));
+voiceListen.onclick=()=>Promise.resolve(voiceConnection?.resume ? voiceConnection.resume() : voiceAudio.play()).then(()=>{voiceListen.hidden=true;voiceSetStatus('Te escucho','Listening');}).catch(()=>voiceSetStatus('No se pudo reproducir el audio. Intenta otra vez.','Audio could not play. Please try again.'));
 voiceListen.style.cssText='border:1px solid var(--border);border-radius:12px;padding:8px 12px;background:var(--side);color:var(--text)';
 voiceAudio.setAttribute('playsinline', '');
 voiceAudio.hidden = true;
@@ -276,12 +276,14 @@ function stopRealVoice() {
   const connection = voiceConnection; voiceConnection = null; connection?.close();
   storeVoiceRecords();
   voiceStarting = false; voiceMuted = false; voiceSpeaking = false;
+  releaseRealtimeAudio();
   renderVoice();
 }
 async function startRealVoice() {
   if (voiceStarting || voiceConnection) return;
   if (!window.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) { voiceSetStatus('Este navegador no admite voz. Prueba Safari o Chrome actualizado.', 'This browser does not support voice. Try an updated Safari or Chrome.'); return; }
   if (openAIBusy) { voiceSetStatus('Espera a que termine la respuesta del chat.', 'Wait for the chat reply to finish.'); return; }
+  prepareRealtimeAudio();
   voiceStarting=true; const generation=++voiceGeneration;
   voiceSetStatus('Conectando voz…', 'Connecting voice…');
   voiceAbort=new AbortController();
@@ -293,11 +295,12 @@ async function startRealVoice() {
     // New voice chats are created only after the connection succeeds.
     voiceBase=voiceChat ? voiceChat.messages.map(m=>[...m]) : [];
     voiceRecords=[];
-    const connection=await voiceAdapters.openai.connect({signal:voiceAbort.signal,generation});
+    const isAppleMobile=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+    const connection=await (isAppleMobile ? connectRealtimeSocket : voiceAdapters.openai.connect)({signal:voiceAbort.signal,generation});
     if (generation !== voiceGeneration || (authUser?.id || null) !== voiceOwner) {connection.close();stopRealVoice();return;}
     voiceConnection=connection;
     if (!voiceChat) {voiceChat={id:crypto.randomUUID(),title:vText('Conversación de voz','Voice conversation'),messages:[],project:currentProject};custom.unshift(voiceChat);active=voiceChat.id;assignNewChatSection(voiceChat);}
-    render(); renderVoice();
+    render(); renderVoice(); connection.start?.();
     voiceTimers.push(setTimeout(()=>{stopRealVoice();voiceSetStatus('Prueba finalizada tras 5 minutos.', 'Test ended after 5 minutes.');},connection.duration*1000));
     voiceTimers.push(setInterval(()=>{if ((authUser?.id || null) !== voiceOwner || active !== voiceChat?.id || !custom.includes(voiceChat)) {stopRealVoice();voiceSetStatus('Voz finalizada al cambiar de conversación o cuenta.', 'Voice ended after changing conversation or account.');}},500));
   } catch(error) {

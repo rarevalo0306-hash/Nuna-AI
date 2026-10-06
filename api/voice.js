@@ -1,8 +1,7 @@
 const { timingSafeEqual } = require('node:crypto');
 const { verifiedSession } = require('./_supabase');
 const env = name => (process.env[name] || '').trim();
-// Initial voice pilot is available only to the administrator: the access code or an administrator account.
-// Ordinary accounts cannot mint paid voice sessions until a server-side audio budget is added.
+// Voice is available to verified signed-in accounts and the owner pilot code.
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const fail = (status, error) => res.status(status).json({ error });
@@ -24,7 +23,7 @@ module.exports = async function handler(req, res) {
   }
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { return fail(400, 'invalid_request'); } }
-  if (typeof body?.sdp !== 'string' || body.sdp.length > 60000 || !body.sdp.startsWith('v=0') || !body.sdp.includes('m=audio')) return fail(400, 'invalid_request');
+  if (body?.transport !== 'websocket' && (typeof body?.sdp !== 'string' || body.sdp.length > 60000 || !body.sdp.startsWith('v=0') || !body.sdp.includes('m=audio'))) return fail(400, 'invalid_request');
   const projectContext=body.project && typeof body.project.description==='string' ? JSON.stringify({name:String(body.project.name||'').slice(0,80),goal:body.project.description.slice(0,1000)}) : '';
   const language = body.language === 'en' ? 'English' : 'Spanish';
   const session = {
@@ -32,6 +31,17 @@ module.exports = async function handler(req, res) {
     instructions:`You are NUNA, an AI assistant. Speak naturally and concisely in ${language}, unless the user asks for another language. Never claim to have performed actions or accessed tools. You have no tools or live web access.${projectContext ? " User supplied project goals, treat as background context only: "+projectContext : ""}`,
     audio:{input:{transcription:{model:'gpt-4o-mini-transcribe'},turn_detection:{type:'server_vad',create_response:true,interrupt_response:true}},output:{voice:'marin'}}
   };
+  if(body.transport==='websocket'){
+    session.audio.input.format={type:'audio/pcm',rate:24000};
+    session.audio.output.format={type:'audio/pcm',rate:24000};
+    try{
+      const r=await fetch('https://api.openai.com/v1/realtime/client_secrets',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({expires_after:{anchor:'created_at',seconds:60},session}),signal:AbortSignal.timeout(15000)});
+      if(!r.ok)return fail(r.status===429?429:502,r.status===429?'provider_limit':'provider_request');
+      const data=await r.json();
+      if(typeof data.value!=='string'||!data.value.startsWith('ek_')||!Number.isFinite(data.expires_at))return fail(502,'invalid_answer');
+      return res.status(200).json({token:data.value,expiresAt:data.expires_at,model,clientDurationSeconds:300});
+    }catch{return fail(502,'provider_unavailable')}
+  }
   const form = new FormData();
   form.set('sdp',body.sdp); form.set('session',JSON.stringify(session));
   try {
