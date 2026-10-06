@@ -25,7 +25,7 @@ async function requestNunaLocation(){
  },error=>{if(generation===locationGeneration){nunaLocation=null;if(error.code===1)rememberLocationChoice('off')}resolve(false)},{enableHighAccuracy:false,timeout:10000,maximumAge:60000})});
 }
 async function beginNunaLocation(){
- const owner=locationChoiceKey();if(locationOwner===owner)return;locationOwner=owner;locationGeneration++;nunaLocation=null;
+ const owner=locationChoiceKey();if(locationOwner===owner)return;locationOwner=owner;locationGeneration++;nunaLocation=null;document.getElementById('location-offer')?.remove();
  if(locationChoice()==='off')return;
  if(locationChoice()==='allow'){
   // Reuse an existing browser grant. Never trigger repeated native prompts on each open.
