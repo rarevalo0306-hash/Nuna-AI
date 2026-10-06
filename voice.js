@@ -49,7 +49,7 @@ document.querySelector('.composer-area').prepend(voiceDialog);
 const voiceStyle = document.createElement('style');
 voiceStyle.textContent = `
 #voice-dialog.voice-inline{position:static;inset:auto;margin:0 0 10px;width:100%;height:auto;min-height:0;max-width:none;max-height:none;box-sizing:border-box;border:1px solid var(--border);border-radius:16px;background:var(--card);color:var(--text);padding:12px 16px;box-shadow:none;color-scheme:normal;overflow:visible}
-#voice-dialog.voice-inline[hidden]{display:none!important}
+#voice-dialog.voice-inline[hidden],#voice-dialog.voice-inline [hidden]{display:none!important}
 #voice-dialog.voice-inline .voice-toolbar{position:static;display:flex;align-items:center;justify-content:space-between;padding:0;border:0;font-size:13px;color:var(--text)}
 #voice-dialog.voice-inline #voice-close{width:36px;height:36px;padding:0;border:1px solid var(--border);border-radius:50%;background:var(--side);color:var(--text);font-size:20px;flex-shrink:0}
 #voice-dialog.voice-inline #voice-status{font-size:13px;min-height:0;margin:4px 0;color:var(--muted)}
