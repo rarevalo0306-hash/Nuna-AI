@@ -70,6 +70,7 @@ Variables en Vercel (valores públicos; el acceso lo controla la base de datos):
 
 - `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY`: el navegador los recibe de `GET /api/config` para iniciar sesión.
 - `NUNA_DAILY_LIMIT`: mensajes de IA por cuenta y día; por defecto 30.
+- `NUNA_ADMIN_EMAILS`: correos de las cuentas de administrador, separados por comas. Esas cuentas no tienen límite diario (sus mensajes se siguen contando) y pueden usar el piloto de voz, igual que el código de acceso. El servidor confirma con Supabase Auth que la sesión es válida y el correo está verificado.
 
 No hace falta la clave secreta (`service_role`): `/api/chat` llama a las funciones de la base de datos con la sesión de la persona, y Supabase verifica el token.
 
