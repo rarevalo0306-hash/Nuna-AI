@@ -31,7 +31,7 @@ for (const button of [voiceStart, voiceCheck, voiceMute, voiceEnd]) { button.typ
 voiceMute.className = 'voice-round'; voiceMute.style.cssText = '';
 voiceEnd.className = 'voice-round voice-hangup'; voiceEnd.style.cssText = '';
 voiceMute.hidden = voiceEnd.hidden = true;
-voiceActions.append(voiceStart, voiceCheck, voiceMute, voiceEnd);
+voiceActions.append(voiceMute, voiceEnd);
 const voiceAudio = document.createElement('audio');
 voiceAudio.autoplay = true;
 voiceAudio.controls = true;
@@ -80,7 +80,8 @@ function renderVoice() {
   voiceCheck.disabled = voiceStarting;
   voiceStart.disabled = voiceStarting;
   voiceStart.hidden = running;
-  voiceMute.hidden = voiceEnd.hidden = !running;
+  voiceMute.hidden = !running;
+  voiceEnd.hidden = !running && !voiceStarting;
   const muteLabel = voiceMuted ? vText('Activar micrófono', 'Unmute microphone') : vText('Silenciar micrófono', 'Mute microphone');
   voiceMute.setAttribute('aria-label', muteLabel); voiceMute.title = muteLabel;
   voiceMute.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>' + (voiceMuted ? '<path d="M3 3l18 18"/>' : '') + '</svg>';
@@ -213,11 +214,11 @@ async function startRealVoice() {
   } finally {clearTimeout(connectTimeout);if(generation===voiceGeneration){voiceStarting=false;renderVoice();}}
 }
 function closeInlineVoice() { stopRealVoice(); voiceDialog.hidden=true; voiceOpen.setAttribute('aria-expanded','false');voiceMessage='';renderVoice();voiceOpen.focus(); }
-voiceOpen.onclick=()=>{if(!voiceDialog.hidden){closeInlineVoice();return;}voiceDialog.hidden=false;voiceOpen.setAttribute('aria-expanded','true');renderVoice();};
+voiceOpen.onclick=()=>{if(!voiceDialog.hidden){closeInlineVoice();return;}voiceDialog.hidden=false;voiceOpen.setAttribute('aria-expanded','true');renderVoice();startRealVoice();};
 voiceClose.onclick=closeInlineVoice;
 voiceStart.onclick=startRealVoice;
 voiceCheck.onclick=async()=>{voiceCheck.disabled=true;voiceSetStatus('Comprobando acceso a OpenAI…','Checking OpenAI access…');try{const response=await fetch('/api/voice',{headers:await aiAuthHeaders(),signal:AbortSignal.timeout(15000)});const data=await response.json();if(!response.ok)throw Object.assign(new Error('voice'),{code:data.error});voiceSetStatus('OpenAI disponible · pulsa comenzar para probar el audio.','OpenAI available · press start to test audio.');}catch(error){const [es,en]=voiceFailure(error);voiceSetStatus(es,en);}finally{voiceCheck.disabled=false;}};
-voiceEnd.onclick=()=>{stopRealVoice();voiceSetStatus('Voz finalizada · micrófono apagado', 'Voice ended · microphone off');};
+voiceEnd.onclick=closeInlineVoice;
 voiceMute.onclick=()=>{voiceMuted=!voiceMuted;voiceConnection?.mute(voiceMuted);voiceSetStatus(voiceMuted?'Micrófono silenciado':'Te escucho',voiceMuted?'Microphone muted':'Listening');};
 // Stop audio on navigation, backgrounding and logout. Typed turns wait until voice has ended.
 window.addEventListener('pagehide',stopRealVoice);
