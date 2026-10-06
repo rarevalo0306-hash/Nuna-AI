@@ -1,5 +1,5 @@
 // Voice controls stay beside the composer so the conversation remains visible.
-// Audio is not connected yet; do not imply that a microphone is recording.
+// Microphone capture starts only after the user starts the pilot.
 const oldVoiceDialog = document.getElementById('voice-dialog');
 const voiceDialog = document.createElement('section');
 voiceDialog.id = 'voice-dialog';
@@ -22,12 +22,14 @@ voiceStatus.setAttribute('role', 'status');
 const voiceNote = document.createElement('p');
 voiceNote.id = 'voice-note';
 const voiceActions = document.createElement('div');
-voiceActions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
+voiceActions.className = 'voice-actions';
 const voiceStart = document.createElement('button');
 const voiceCheck = document.createElement('button');
 const voiceMute = document.createElement('button');
 const voiceEnd = document.createElement('button');
 for (const button of [voiceStart, voiceCheck, voiceMute, voiceEnd]) { button.type = 'button'; button.className = 'auth-google'; button.style.cssText = 'width:auto;flex:1;padding:8px 12px;border-radius:16px;min-height:44px'; }
+voiceMute.className = 'voice-round'; voiceMute.style.cssText = '';
+voiceEnd.className = 'voice-round voice-hangup'; voiceEnd.style.cssText = '';
 voiceMute.hidden = voiceEnd.hidden = true;
 voiceActions.append(voiceStart, voiceCheck, voiceMute, voiceEnd);
 const voiceAudio = document.createElement('audio');
@@ -48,6 +50,14 @@ voiceStyle.textContent = `
 #voice-dialog.voice-inline #voice-status{font-size:13px;min-height:0;margin:4px 0;color:var(--muted)}
 #voice-dialog.voice-inline #voice-status:before{display:none}
 #voice-dialog.voice-inline #voice-note{max-width:none;margin:4px 0 0;font-size:12px;line-height:1.4;color:var(--muted)}
+#voice-dialog.voice-inline .voice-actions{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:12px}
+#voice-dialog.voice-inline .voice-round{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;padding:0;border:1px solid var(--border);border-radius:50%;background:var(--side);color:var(--text);cursor:pointer;transition:transform .15s,background .15s}
+#voice-dialog.voice-inline .voice-round:hover{transform:translateY(-2px)}
+#voice-dialog.voice-inline .voice-round:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+#voice-dialog.voice-inline .voice-round[hidden]{display:none}
+#voice-dialog.voice-inline .voice-round[aria-pressed=true]{background:var(--accent);color:var(--bg)}
+#voice-dialog.voice-inline .voice-hangup{background:#e5484d;border-color:#e5484d;color:white}
+#voice-dialog.voice-inline .voice-round svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 #voice-open[aria-expanded=true]{background:var(--accent);color:var(--bg)}
 @media(max-width:760px){#voice-dialog.voice-inline{padding:10px 12px}#voice-dialog.voice-inline #voice-close{width:44px;height:44px}}
 `;
@@ -71,9 +81,13 @@ function renderVoice() {
   voiceStart.disabled = voiceStarting;
   voiceStart.hidden = running;
   voiceMute.hidden = voiceEnd.hidden = !running;
-  voiceMute.textContent = voiceMuted ? vText('Activar micrófono', 'Unmute microphone') : vText('Silenciar micrófono', 'Mute microphone');
+  const muteLabel = voiceMuted ? vText('Activar micrófono', 'Unmute microphone') : vText('Silenciar micrófono', 'Mute microphone');
+  voiceMute.setAttribute('aria-label', muteLabel); voiceMute.title = muteLabel;
+  voiceMute.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>' + (voiceMuted ? '<path d="M3 3l18 18"/>' : '') + '</svg>';
   voiceMute.setAttribute('aria-pressed', String(voiceMuted));
-  voiceEnd.textContent = vText('Finalizar', 'End');
+  const endLabel = vText('Finalizar llamada', 'End call');
+  voiceEnd.setAttribute('aria-label', endLabel); voiceEnd.title = endLabel;
+  voiceEnd.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 14v-4c5-5 13-5 18 0v4l-5-1v-3a12 12 0 0 0-8 0v3z"/></svg>';
   voiceStatus.textContent = voiceMessage || vText('Lista para probar · micrófono apagado', 'Ready to test · microphone off');
   voiceNote.textContent = vText('Prueba para administradores. OpenAI recibe tu audio y las transcripciones se guardan en este chat. La voz es generada por IA. Este navegador termina la prueba a los 5 minutos; el audio tiene costo.', 'Administrator pilot. OpenAI receives your audio and transcripts are saved in this chat. The voice is AI generated. This browser ends the test after 5 minutes; audio has a cost.');
 }
