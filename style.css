@@ -74,3 +74,25 @@ body{--nuna-font-scale:1}body[data-font-size=small]{--nuna-font-scale:.9}body[da
 #ai-code-dialog::backdrop{background:#0008}
 #ai-code-dialog .ai-code-show{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-top:10px;cursor:pointer}
 #ai-code-dialog .ai-code-note{font-size:12px;line-height:1.5;color:var(--muted);margin:12px 0 16px}
+
+/* Modelos: menú de la cabecera, estado real y prueba de conexión */
+.header-left{position:relative}
+#model-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:30;min-width:260px;max-width:calc(100vw - 24px);padding:6px;border:1px solid var(--border);border-radius:18px;background:var(--card);box-shadow:0 18px 50px #0005;display:flex;flex-direction:column;gap:2px}
+#model-menu button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:44px;padding:8px 12px;border:0;border-radius:12px;background:transparent;text-align:left;font-size:14px}
+#model-menu button:hover{background:var(--hover)}
+#model-menu .model-menu-item[aria-pressed="true"]{background:var(--hover);color:var(--accent)}
+#model-menu .model-menu-item[aria-pressed="true"]::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
+#model-menu small{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
+#model-menu .model-menu-manage{margin-top:4px;border-top:1px solid var(--border);border-radius:0 0 12px 12px;color:var(--accent);font-size:13px}
+.models-tools{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 4px}
+.models-check,.model-test{min-height:40px;padding:0 16px;border:1px solid var(--border);border-radius:20px;background:transparent;color:var(--accent);font-size:13px}
+.models-check:hover,.model-test:hover{background:var(--hover)}
+.models-check:disabled,.model-test:disabled{opacity:.6;cursor:default}
+.models-status{min-height:1.4em;font-size:13px;color:var(--muted);margin:6px 0 10px}
+.model-card{flex-wrap:wrap}
+.model-choice{display:flex;align-items:center;gap:10px;flex:1 1 220px;min-width:0;cursor:pointer}
+.model-card .model-status{margin-left:auto}
+#settings-dialog .model-card .badge{margin-left:auto}
+.model-status.ok{border-color:var(--accent);color:var(--accent)}
+#settings-dialog .model-status.missing{border-style:dashed}
+#settings-dialog .model-card .model-status{display:inline-block}

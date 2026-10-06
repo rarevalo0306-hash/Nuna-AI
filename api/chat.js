@@ -6,6 +6,16 @@ function authorized(value, expected) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+const PROVIDERS = ['openai', 'anthropic', 'deepseek', 'gemini', 'grok', 'qwen'];
+
+// Read at request time so a redeploy with new variables is picked up.
+function providerConfig() {
+  return {
+    key: { openai: process.env.OPENAI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY, deepseek: process.env.DEEPSEEK_API_KEY, gemini: process.env.GEMINI_API_KEY, grok: process.env.XAI_API_KEY, qwen: process.env.DASHSCOPE_API_KEY },
+    model: { openai: process.env.NUNA_OPENAI_MODEL || 'gpt-4.1-mini', anthropic: process.env.NUNA_ANTHROPIC_MODEL, deepseek: process.env.NUNA_DEEPSEEK_MODEL || 'deepseek-chat', gemini: process.env.NUNA_GEMINI_MODEL || 'gemini-2.5-flash', grok: process.env.NUNA_GROK_MODEL, qwen: process.env.NUNA_QWEN_MODEL || 'qwen-plus' }
+  };
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   // Log only the error code and provider so failures can be diagnosed in Vercel logs without exposing secrets or message content.
@@ -13,7 +23,7 @@ module.exports = async function handler(req, res) {
     console.warn(JSON.stringify({ nuna_chat_error: error, provider: provider || null, status }));
     return res.status(status).json(provider ? { error, provider } : { error });
   };
-  if (req.method !== 'POST') return fail(405, 'method_not_allowed');
+  if (req.method !== 'POST' && req.method !== 'GET') return fail(405, 'method_not_allowed');
   // Trim so a stray space or newline pasted into Vercel or the code field does not break the comparison.
   const accessCode = (process.env.NUNA_ACCESS_CODE || '').trim();
   if (!accessCode) return fail(503, 'access_code_missing');
@@ -21,14 +31,19 @@ module.exports = async function handler(req, res) {
   if (!authorized(String(req.headers['x-nuna-access-code'] || '').trim(), accessCode)) {
     return fail(401, 'unauthorized');
   }
+  const config = providerConfig();
+  // GET reports only whether each provider has a key and a model configured: never values, model IDs or secrets.
+  if (req.method === 'GET') {
+    return res.status(200).json({ providers: Object.fromEntries(PROVIDERS.map(p => [p, { key: Boolean(config.key[p]), model: Boolean(config.model[p]) }])) });
+  }
   let body = req.body;
   if (typeof body === 'string') {
     try { body = JSON.parse(body); } catch { return fail(400, 'invalid_request'); }
   }
   const provider = body?.provider || 'openai';
-  if (!['openai', 'anthropic', 'deepseek', 'gemini', 'grok', 'qwen'].includes(provider)) return fail(400, 'unsupported_provider');
-  const key = { openai: process.env.OPENAI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY, deepseek: process.env.DEEPSEEK_API_KEY, gemini: process.env.GEMINI_API_KEY, grok: process.env.XAI_API_KEY, qwen: process.env.DASHSCOPE_API_KEY }[provider];
-  const model = { openai: process.env.NUNA_OPENAI_MODEL || 'gpt-4.1-mini', anthropic: process.env.NUNA_ANTHROPIC_MODEL, deepseek: process.env.NUNA_DEEPSEEK_MODEL || 'deepseek-chat', gemini: process.env.NUNA_GEMINI_MODEL || 'gemini-2.5-flash', grok: process.env.NUNA_GROK_MODEL, qwen: process.env.NUNA_QWEN_MODEL || 'qwen-plus' }[provider];
+  if (!PROVIDERS.includes(provider)) return fail(400, 'unsupported_provider');
+  const key = config.key[provider];
+  const model = config.model[provider];
   if (!key) return fail(503, 'provider_key_missing', provider);
   if (!model) return fail(503, 'provider_model_missing', provider);
   const messages = body?.messages;

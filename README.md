@@ -65,3 +65,14 @@ Cada error de `/api/chat` deja en los registros de Vercel una línea `nuna_chat_
 ## Voz
 
 En Configuración → Voz, «Escuchar» reproduce una muestra con la síntesis de voz del propio navegador. La voz exacta depende del dispositivo; la voz final se definirá al conectar un proveedor de audio. El micrófono sigue apagado.
+
+## Modelos: selector y estado real
+
+El selector de la cabecera abre un menú para cambiar de modelo sin entrar en Configuración. Cada mensaje lo responde un solo modelo. En Configuración → Modelos, cada proveedor muestra su estado:
+
+- **Sin comprobar**: aún no se ha introducido el código privado.
+- **Falta clave / Falta modelo**: el servidor no tiene la variable correspondiente en este despliegue.
+- **Configurado · sin verificar**: hay clave y modelo, pero todavía no hubo una respuesta real.
+- **Verificado**: este navegador recibió una respuesta real del proveedor (chat o «Probar conexión»).
+
+`GET /api/chat` con el código privado devuelve solo si cada proveedor tiene clave y modelo configurados (`true`/`false`), nunca valores ni identificadores. «Probar conexión» hace una llamada real y breve al proveedor y puede consumir crédito de API.
