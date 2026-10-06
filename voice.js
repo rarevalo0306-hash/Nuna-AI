@@ -128,6 +128,7 @@ function renderVoice() {
 function voiceSetStatus(es, en) { voiceMessage = vText(es, en); renderVoice(); }
 function voiceFailure(error) {
   const messages = {
+    microphone_timeout:['Safari no respondió al permiso del micrófono. Revisa el permiso de este sitio y vuelve a intentar.','Safari did not answer the microphone request. Check this site’s microphone permission and retry.'],
     login_required:['Inicia sesión en NUNA para usar la voz.', 'Sign in to NUNA to use voice.'],
     voice_test_only:['La voz está disponible para la cuenta de administrador. Comprueba que iniciaste sesión con esa cuenta; también puedes usar tu código de administrador.', 'Voice is available to the administrator account. Check that you signed in with that account; you can also use your administrator code.'],
     provider_key_missing:['Falta configurar el servicio de voz.', 'The voice service is not configured.'],
@@ -168,6 +169,21 @@ function receiveVoiceEvent(event) {
     stopRealVoice(); voiceSetStatus('La sesión de voz falló. Puedes volver a conectar.', 'The voice session failed. You can reconnect.');
   }
 }
+// getUserMedia does not accept AbortSignal; stop any stream arriving after cancellation.
+async function requestVoiceMicrophone(signal,generation){
+  let timer,abortHandler,settled=false;
+  return new Promise((resolve,reject)=>{
+    const fail=error=>{if(settled)return;settled=true;clearTimeout(timer);signal.removeEventListener('abort',abortHandler);reject(error)};
+    abortHandler=()=>fail(new DOMException('Cancelled','AbortError'));
+    signal.addEventListener('abort',abortHandler,{once:true});
+    timer=setTimeout(()=>fail(Object.assign(new Error('microphone_timeout'),{code:'microphone_timeout'})),12000);
+    if(signal.aborted){abortHandler();return;}
+    navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}).then(stream=>{
+      if(settled||signal.aborted||generation!==voiceGeneration){stream.getTracks().forEach(track=>track.stop());if(!settled)abortHandler();return;}
+      settled=true;clearTimeout(timer);signal.removeEventListener('abort',abortHandler);resolve(stream);
+    },fail);
+  });
+}
 // Provider adapter: future integrations can return the same connection interface.
 const voiceAdapters = {
   openai: {
@@ -176,11 +192,14 @@ const voiceAdapters = {
       // Always include the signed-in identity, even when a stored pilot code exists.
       const sessionToken = await authAccessToken();
       if(sessionToken) headers.Authorization='Bearer '+sessionToken;
+      voiceSetStatus('Comprobando tu sesión…','Checking your session…');
       const check = await fetch('/api/voice', {headers, signal});
       const availability = await check.json();
       if (!check.ok) throw Object.assign(new Error('voice'), {code:availability.error});
       if (generation !== voiceGeneration) throw new DOMException('Cancelled', 'AbortError');
-      const stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      voiceSetStatus('Permite el micrófono si Safari lo solicita…','Allow the microphone if Safari asks…');
+      const stream = await requestVoiceMicrophone(signal, generation);
+      voiceSetStatus('Conectando el audio con NUNA…','Connecting audio to NUNA…');
       if (generation !== voiceGeneration) { stream.getTracks().forEach(t => t.stop()); throw new DOMException('Cancelled', 'AbortError'); }
       const pc = new RTCPeerConnection();
       const channel = pc.createDataChannel('oai-events');
