@@ -43,3 +43,25 @@ La prueba privada admite DeepSeek Chat Completions API. Configura `DEEPSEEK_API_
 ## Google Gemini
 
 Configura `GEMINI_API_KEY` como secreto en Vercel. `NUNA_GEMINI_MODEL` es opcional; por defecto `gemini-2.5-flash`. Se usa GenerateContent API con clave en cabecera, historial user/model y límite de salida. Selecciona Gemini y activa «Probar IA». Se reutiliza `NUNA_ACCESS_CODE`. La disponibilidad y cuota del modelo deben verificarse con tu cuenta; solo se ha probado el recorrido con respuestas simuladas.
+
+## Grok (xAI)
+
+Configura `XAI_API_KEY` como secreto y `NUNA_GROK_MODEL` con el ID exacto de un modelo disponible en tu cuenta xAI (no se asume ninguno). Usa Chat Completions de xAI. Se reutiliza `NUNA_ACCESS_CODE`. Solo texto. Pendiente de verificar con una respuesta real.
+
+## Qwen (Alibaba Cloud)
+
+Configura `DASHSCOPE_API_KEY` como secreto. `NUNA_QWEN_MODEL` es opcional (por defecto `qwen-plus`). `NUNA_QWEN_BASE_URL` apunta por defecto al endpoint internacional compatible con OpenAI; para China continental usa `https://dashscope.aliyuncs.com/compatible-mode/v1`. Solo texto. Pendiente de verificar con una respuesta real.
+
+## Diagnóstico
+
+Cada error de `/api/chat` deja en los registros de Vercel una línea `nuna_chat_error` con el código y el proveedor, sin claves ni contenido de mensajes. Sirve para saber, por ejemplo, si falta el código privado, si es demasiado corto o si falta el modelo de un proveedor.
+
+`.env.example` lista todas las variables sin valores.
+
+## Supabase (fase siguiente)
+
+`supabase/schema.sql` propone perfiles, proyectos, conversaciones, mensajes y perfil profesional (Work) con Row Level Security. Todavía no está aplicado ni conectado: los datos siguen guardándose en el navegador.
+
+## Voz
+
+En Configuración → Voz, «Escuchar» reproduce una muestra con la síntesis de voz del propio navegador. La voz exacta depende del dispositivo; la voz final se definirá al conectar un proveedor de audio. El micrófono sigue apagado.
