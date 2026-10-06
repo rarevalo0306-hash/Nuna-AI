@@ -180,3 +180,9 @@ html,body{max-width:100%;overflow-x:hidden}main,#scroll-area{min-height:0}
  .header-actions{flex-shrink:0}
  #composer,.composer-controls{min-width:0;max-width:100%}
 }
+.settings-mobile-section{display:none}
+@media(max-width:760px){
+ #settings-dialog .settings-tabs{display:none}
+ #settings-dialog .settings-mobile-section{display:grid;gap:7px;flex-shrink:0;padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)}
+ .settings-mobile-section select{width:100%;min-height:44px;border:1px solid var(--border);border-radius:12px;background:var(--card);color:var(--text);padding:10px 12px;font-size:16px}
+}
