@@ -128,6 +128,7 @@ function renderVoice() {
 function voiceSetStatus(es, en) { voiceMessage = vText(es, en); renderVoice(); }
 function voiceFailure(error) {
   const messages = {
+    voice_network_timeout:['No se pudo establecer el audio. Prueba otra red Wi-Fi o los datos móviles y vuelve a conectar.','Audio could not connect. Try another Wi-Fi network or cellular data and reconnect.'],
     microphone_timeout:['Safari no respondió al permiso del micrófono. Revisa el permiso de este sitio y vuelve a intentar.','Safari did not answer the microphone request. Check this site’s microphone permission and retry.'],
     login_required:['Inicia sesión en NUNA para usar la voz.', 'Sign in to NUNA to use voice.'],
     voice_test_only:['La voz está disponible para la cuenta de administrador. Comprueba que iniciaste sesión con esa cuenta; también puedes usar tu código de administrador.', 'Voice is available to the administrator account. Check that you signed in with that account; you can also use your administrator code.'],
@@ -184,6 +185,19 @@ async function requestVoiceMicrophone(signal,generation){
     },fail);
   });
 }
+async function waitForVoiceChannel(channel,signal){
+  if(channel.readyState==='open')return;
+  return new Promise((resolve,reject)=>{
+    let timer;
+    const clean=()=>{clearTimeout(timer);channel.removeEventListener('open',opened);channel.removeEventListener('close',closed);signal.removeEventListener('abort',aborted)};
+    const opened=()=>{clean();resolve()};
+    const closed=()=>{clean();reject(Object.assign(new Error('voice_network_timeout'),{code:'voice_network_timeout'}))};
+    const aborted=()=>{clean();reject(new DOMException('Cancelled','AbortError'))};
+    channel.addEventListener('open',opened,{once:true});channel.addEventListener('close',closed,{once:true});signal.addEventListener('abort',aborted,{once:true});
+    timer=setTimeout(closed,12000);
+    if(signal.aborted)aborted();else if(channel.readyState==='open')opened();
+  });
+}
 // Provider adapter: future integrations can return the same connection interface.
 const voiceAdapters = {
   openai: {
@@ -233,6 +247,7 @@ const voiceAdapters = {
         if (!response.ok) throw Object.assign(new Error('voice'),{code:answer.error});
         if (generation !== voiceGeneration) throw new DOMException('Cancelled','AbortError');
         await pc.setRemoteDescription({type:'answer',sdp:answer.sdp});
+        await waitForVoiceChannel(channel,signal);
         return {close, mute(value){stream.getAudioTracks().forEach(track => {track.enabled=!value;});}, duration:answer.clientDurationSeconds || 300};
       } catch (error) { close(); throw error; }
     }
