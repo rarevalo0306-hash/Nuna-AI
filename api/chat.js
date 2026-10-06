@@ -10,18 +10,45 @@ const PROVIDERS = ['openai', 'anthropic', 'deepseek', 'gemini', 'grok', 'qwen'];
 
 // Read at request time so a redeploy with new variables is picked up.
 function providerConfig() {
+  // Trim so a pasted space or newline in Vercel does not break a key header or a model ID.
+  const env = name => (process.env[name] || '').trim();
   return {
-    key: { openai: process.env.OPENAI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY, deepseek: process.env.DEEPSEEK_API_KEY, gemini: process.env.GEMINI_API_KEY, grok: process.env.XAI_API_KEY, qwen: process.env.DASHSCOPE_API_KEY },
-    model: { openai: process.env.NUNA_OPENAI_MODEL || 'gpt-4.1-mini', anthropic: process.env.NUNA_ANTHROPIC_MODEL, deepseek: process.env.NUNA_DEEPSEEK_MODEL || 'deepseek-chat', gemini: process.env.NUNA_GEMINI_MODEL || 'gemini-2.5-flash', grok: process.env.NUNA_GROK_MODEL, qwen: process.env.NUNA_QWEN_MODEL || 'qwen-plus' }
+    key: { openai: env('OPENAI_API_KEY'), anthropic: env('ANTHROPIC_API_KEY'), deepseek: env('DEEPSEEK_API_KEY'), gemini: env('GEMINI_API_KEY'), grok: env('XAI_API_KEY'), qwen: env('DASHSCOPE_API_KEY') },
+    model: { openai: env('NUNA_OPENAI_MODEL') || 'gpt-4.1-mini', anthropic: env('NUNA_ANTHROPIC_MODEL'), deepseek: env('NUNA_DEEPSEEK_MODEL') || 'deepseek-chat', gemini: env('NUNA_GEMINI_MODEL') || 'gemini-2.5-flash', grok: env('NUNA_GROK_MODEL'), qwen: env('NUNA_QWEN_MODEL') || 'qwen-plus' }
   };
+}
+
+// Ask the provider which models this key can use, so a "model not found" error can name real options. Returns names only.
+async function listProviderModels(provider, key) {
+  try {
+    const qwenBase = (process.env.NUNA_QWEN_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1').replace(/\/+$/, '');
+    const url = { gemini: 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', openai: 'https://api.openai.com/v1/models', anthropic: 'https://api.anthropic.com/v1/models?limit=100', deepseek: 'https://api.deepseek.com/models', grok: 'https://api.x.ai/v1/models', qwen: `${qwenBase}/models` }[provider];
+    const headers = provider === 'gemini' ? { 'x-goog-api-key': key } : provider === 'anthropic' ? { 'x-api-key': key, 'anthropic-version': '2023-06-01' } : { Authorization: `Bearer ${key}` };
+    const response = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
+    if (!response.ok) return [];
+    const data = await response.json();
+    const names = provider === 'gemini'
+      ? (data.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => String(m.name || '').replace(/^models\//, ''))
+      : (data.data || []).map(m => String(m.id || ''));
+    // Leave out models that cannot hold a text chat (embeddings, audio, images, moderation).
+    // Gemma rejects the system instruction this handler sends; legacy completion and agent-only models cannot hold this chat.
+    // Only each provider's own chat families, minus models that cannot hold this text chat.
+    const family = { gemini: /^gemini-/i, anthropic: /^claude-/i, deepseek: /^deepseek-/i, grok: /^grok-/i, openai: /^(gpt-|o\d|chatgpt-)/i, qwen: /^(qwen|qwq)/i }[provider];
+    const usable = [...new Set(names)].filter(n => /^[\w.:\/-]{1,100}$/.test(n) && family.test(n) && !/-vl|omni|asr|codex|embed|tts|whisper|dall-e|moderation|audio|realtime|transcribe|image|imagen|veo|search|aqa|gemma|davinci|babbage|instruct|sora|computer-use|deep-research/i.test(n));
+    // Put the usual chat families first so the shortened list in the UI shows them.
+    const rank = n => (/(^|[-_.])(flash|mini|haiku|chat|turbo|plus)([-_.]|$)/i.test(n) ? 0 : /pro|sonnet|opus|gpt|grok|qwen|deepseek|claude|gemini/i.test(n) ? 1 : 2) + (/preview|exp|latest|\d{4}-\d{2}-\d{2}|-\d{3}$/i.test(n) ? 0.5 : 0);
+    return usable.sort((a, b) => rank(a) - rank(b)).slice(0, 40);
+  } catch {
+    return [];
+  }
 }
 
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   // Log only the error code and provider so failures can be diagnosed in Vercel logs without exposing secrets or message content.
-  const fail = (status, error, provider) => {
-    console.warn(JSON.stringify({ nuna_chat_error: error, provider: provider || null, status }));
-    return res.status(status).json(provider ? { error, provider } : { error });
+  const fail = (status, error, provider, extra = {}) => {
+    console.warn(JSON.stringify({ nuna_chat_error: error, provider: provider || null, status, ...extra }));
+    return res.status(status).json(provider ? { error, provider, ...extra } : { error });
   };
   if (req.method !== 'POST' && req.method !== 'GET') return fail(405, 'method_not_allowed');
   // Trim so a stray space or newline pasted into Vercel or the code field does not break the comparison.
@@ -45,7 +72,7 @@ module.exports = async function handler(req, res) {
   const key = config.key[provider];
   const model = config.model[provider];
   if (!key) return fail(503, 'provider_key_missing', provider);
-  if (!model) return fail(503, 'provider_model_missing', provider);
+  if (!model) return fail(503, 'provider_model_missing', provider, { available: await listProviderModels(provider, key) });
   const messages = body?.messages;
   if (!Array.isArray(messages) || !messages.length || messages.length > 30 ||
       messages.some(m => !m || !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string' || !m.content.trim() || m.content.length > 12000) ||
@@ -75,7 +102,8 @@ module.exports = async function handler(req, res) {
     });
     if (!response.ok) {
       const errors = { 400: 'provider_request', 401: 'provider_auth', 403: 'provider_permission', 404: 'provider_model', 429: 'provider_limit' };
-      return fail(response.status === 429 ? 429 : 502, errors[response.status] || 'provider_error', provider);
+      const extra = response.status === 404 ? { model, available: await listProviderModels(provider, key) } : {};
+      return fail(response.status === 429 ? 429 : 502, errors[response.status] || 'provider_error', provider, extra);
     }
     const data = await response.json();
     const text = (isGemini
