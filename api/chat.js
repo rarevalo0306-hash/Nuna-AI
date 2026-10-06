@@ -8,36 +8,43 @@ function authorized(value, expected) {
 
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
-  if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
+  // Log only the error code and provider so failures can be diagnosed in Vercel logs without exposing secrets or message content.
+  const fail = (status, error, provider) => {
+    console.warn(JSON.stringify({ nuna_chat_error: error, provider: provider || null, status }));
+    return res.status(status).json(provider ? { error, provider } : { error });
+  };
+  if (req.method !== 'POST') return fail(405, 'method_not_allowed');
   const accessCode = process.env.NUNA_ACCESS_CODE;
-  if (!accessCode) return res.status(503).json({ error: 'access_code_missing' });
-  if (accessCode.length < 16) return res.status(503).json({ error: 'access_code_short' });
+  if (!accessCode) return fail(503, 'access_code_missing');
+  if (accessCode.length < 16) return fail(503, 'access_code_short');
   if (!authorized(req.headers['x-nuna-access-code'], accessCode)) {
-    return res.status(401).json({ error: 'unauthorized' });
+    return fail(401, 'unauthorized');
   }
   let body = req.body;
   if (typeof body === 'string') {
-    try { body = JSON.parse(body); } catch { return res.status(400).json({ error: 'invalid_request' }); }
+    try { body = JSON.parse(body); } catch { return fail(400, 'invalid_request'); }
   }
   const provider = body?.provider || 'openai';
-  if (!['openai', 'anthropic', 'deepseek', 'gemini'].includes(provider)) return res.status(400).json({ error: 'unsupported_provider' });
-  const key = { openai: process.env.OPENAI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY, deepseek: process.env.DEEPSEEK_API_KEY, gemini: process.env.GEMINI_API_KEY }[provider];
-  const model = { openai: process.env.NUNA_OPENAI_MODEL || 'gpt-4.1-mini', anthropic: process.env.NUNA_ANTHROPIC_MODEL, deepseek: process.env.NUNA_DEEPSEEK_MODEL || 'deepseek-chat', gemini: process.env.NUNA_GEMINI_MODEL || 'gemini-2.5-flash' }[provider];
-  if (!key) return res.status(503).json({ error: 'provider_key_missing', provider });
-  if (!model) return res.status(503).json({ error: 'provider_model_missing', provider });
+  if (!['openai', 'anthropic', 'deepseek', 'gemini', 'grok', 'qwen'].includes(provider)) return fail(400, 'unsupported_provider');
+  const key = { openai: process.env.OPENAI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY, deepseek: process.env.DEEPSEEK_API_KEY, gemini: process.env.GEMINI_API_KEY, grok: process.env.XAI_API_KEY, qwen: process.env.DASHSCOPE_API_KEY }[provider];
+  const model = { openai: process.env.NUNA_OPENAI_MODEL || 'gpt-4.1-mini', anthropic: process.env.NUNA_ANTHROPIC_MODEL, deepseek: process.env.NUNA_DEEPSEEK_MODEL || 'deepseek-chat', gemini: process.env.NUNA_GEMINI_MODEL || 'gemini-2.5-flash', grok: process.env.NUNA_GROK_MODEL, qwen: process.env.NUNA_QWEN_MODEL || 'qwen-plus' }[provider];
+  if (!key) return fail(503, 'provider_key_missing', provider);
+  if (!model) return fail(503, 'provider_model_missing', provider);
   const messages = body?.messages;
   if (!Array.isArray(messages) || !messages.length || messages.length > 30 ||
       messages.some(m => !m || !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string' || !m.content.trim() || m.content.length > 12000) ||
       messages.reduce((n, m) => n + m.content.length, 0) > 40000 || messages.at(-1).role !== 'user') {
-    return res.status(400).json({ error: 'invalid_messages' });
+    return fail(400, 'invalid_messages', provider);
   }
-  if (body.attachments) return res.status(400).json({ error: 'text_only' });
+  if (body.attachments) return fail(400, 'text_only', provider);
   try {
     const instructions = 'You are NUNA AI, a helpful assistant. Reply in the language of the user. Never claim to perform actions that have not been performed.';
     const isAnthropic = provider === 'anthropic';
-    const isDeepSeek = provider === 'deepseek';
+    // DeepSeek, Grok (xAI) and Qwen (DashScope compatible mode) share the Chat Completions format.
+    const chatCompletionsUrl = { deepseek: 'https://api.deepseek.com/chat/completions', grok: 'https://api.x.ai/v1/chat/completions', qwen: `${(process.env.NUNA_QWEN_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1').replace(/\/+$/, '')}/chat/completions` }[provider];
+    const isDeepSeek = Boolean(chatCompletionsUrl);
     const isGemini = provider === 'gemini';
-    const response = await fetch(isGemini ? `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent` : isAnthropic ? 'https://api.anthropic.com/v1/messages' : isDeepSeek ? 'https://api.deepseek.com/chat/completions' : 'https://api.openai.com/v1/responses', {
+    const response = await fetch(isGemini ? `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent` : isAnthropic ? 'https://api.anthropic.com/v1/messages' : isDeepSeek ? chatCompletionsUrl : 'https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: isGemini ? { 'x-goog-api-key': key, 'Content-Type': 'application/json' } : isAnthropic
         ? { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' }
@@ -52,7 +59,7 @@ module.exports = async function handler(req, res) {
     });
     if (!response.ok) {
       const errors = { 400: 'provider_request', 401: 'provider_auth', 403: 'provider_permission', 404: 'provider_model', 429: 'provider_limit' };
-      return res.status(response.status === 429 ? 429 : 502).json({ error: errors[response.status] || 'provider_error', provider });
+      return fail(response.status === 429 ? 429 : 502, errors[response.status] || 'provider_error', provider);
     }
     const data = await response.json();
     const text = (isGemini
@@ -66,10 +73,10 @@ module.exports = async function handler(req, res) {
     if (!text) {
       const finish = isGemini ? data.candidates?.[0]?.finishReason : null;
       const error = data.promptFeedback?.blockReason || finish === 'SAFETY' ? 'provider_blocked' : finish === 'MAX_TOKENS' ? 'provider_output_limit' : 'empty_response';
-      return res.status(502).json({ error, provider });
+      return fail(502, error, provider);
     }
     return res.status(200).json({ text, model: data.model || model, provider });
   } catch (error) {
-    return res.status(502).json({ error: error.name === 'TimeoutError' ? 'provider_timeout' : 'provider_error' });
+    return fail(502, error.name === 'TimeoutError' ? 'provider_timeout' : 'provider_error', provider);
   }
 };
