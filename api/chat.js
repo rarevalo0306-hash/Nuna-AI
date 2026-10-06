@@ -1,5 +1,5 @@
 const { timingSafeEqual } = require('node:crypto');
-const { supabaseConfig, dailyLimit, supabaseRpc } = require('./_supabase');
+const { supabaseConfig, dailyLimit, supabaseRpc, isAdminSession } = require('./_supabase');
 
 function authorized(value, expected) {
   if (typeof value !== 'string' || !expected) return false;
@@ -75,6 +75,9 @@ module.exports = async function handler(req, res) {
   } else if (!supabaseConfig()) {
     return fail(503, 'accounts_not_configured');
   }
+  // An administrator account works like the owner's access code: no daily limit (its messages are still counted).
+  const admin = session ? await isAdminSession(session) : false;
+  const owner = Boolean(code) || admin;
   const config = providerConfig();
   // GET reports only whether each provider has a key and a model configured (never values, model IDs or secrets),
   // plus today's usage for an account.
@@ -84,7 +87,7 @@ module.exports = async function handler(req, res) {
       const { status, data } = await supabaseRpc('ai_usage_today', session);
       if (sessionRejected(status, data)) return fail(401, 'session_expired');
       if (status !== 200 || !Number.isInteger(data)) return fail(503, 'accounts_unavailable');
-      usage = { used: data, limit: dailyLimit() };
+      usage = admin ? { used: data, limit: null, admin: true } : { used: data, limit: dailyLimit() };
     }
     return res.status(200).json({ providers: Object.fromEntries(PROVIDERS.map(p => [p, { key: Boolean(config.key[p]), model: Boolean(config.model[p]) }])), usage });
   }
@@ -98,7 +101,7 @@ module.exports = async function handler(req, res) {
   const model = config.model[provider];
   if (!key) return fail(503, 'provider_key_missing', provider);
   // Model lists and IDs are configuration details for the owner; accounts only learn that the model is missing.
-  if (!model) return fail(503, 'provider_model_missing', provider, code ? { available: await listProviderModels(provider, key) } : {});
+  if (!model) return fail(503, 'provider_model_missing', provider, owner ? { available: await listProviderModels(provider, key) } : {});
   const messages = body?.messages;
   if (!Array.isArray(messages) || !messages.length || messages.length > 30 ||
       messages.some(m => !m || !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string' || !m.content.trim() || m.content.length > 12000) ||
@@ -110,13 +113,13 @@ module.exports = async function handler(req, res) {
   // If the provider then fails, the message is given back.
   let usage = null, reservation = null;
   if (session) {
-    const limit = dailyLimit();
+    const limit = admin ? 1000000 : dailyLimit();
     if (limit === 0) return fail(503, 'accounts_paused');
     const { status, data } = await supabaseRpc('consume_ai_message', session, { p_limit: limit });
     if (sessionRejected(status, data)) return fail(401, 'session_expired');
     const row = Array.isArray(data) ? data[0] : null;
     if (status !== 200 || !row || typeof row.ok !== 'boolean') return fail(503, 'accounts_unavailable');
-    usage = { used: row.used_today, limit: row.day_limit };
+    usage = admin ? { used: row.used_today, limit: null, admin: true } : { used: row.used_today, limit: row.day_limit };
     if (!row.ok) return fail(429, 'daily_limit', null, { usage });
     reservation = row.reservation_id;
   }
@@ -163,7 +166,7 @@ module.exports = async function handler(req, res) {
       const modelMissing = response.status === 404 || /model_not_found|model[^.]{0,60}(not exist|does not exist|not found)/i.test(body);
       // The provider refused the request, so it produced nothing to bill: give the message back first.
       await refund();
-      const extra = modelMissing && code ? { model, available: await listProviderModels(provider, key) } : {};
+      const extra = modelMissing && owner ? { model, available: await listProviderModels(provider, key) } : {};
       if (usage) extra.usage = usage;
       return fail(response.status === 429 ? 429 : 502, modelMissing ? 'provider_model' : errors[response.status] || 'provider_error', provider, extra);
     }

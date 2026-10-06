@@ -41,4 +41,25 @@ async function supabaseRpc(name, token, args = {}) {
   }
 }
 
-module.exports = { supabaseConfig, dailyLimit, supabaseRpc };
+// Administrator accounts (NUNA_ADMIN_EMAILS, comma separated) have no daily limit. The email in the token is only a
+// hint to avoid an extra request for everyone else: Supabase Auth must confirm the session is valid and the email verified.
+function adminEmails() {
+  return env('NUNA_ADMIN_EMAILS').toLowerCase().split(/[\s,;]+/).filter(Boolean);
+}
+async function isAdminSession(token) {
+  const list = adminEmails(), config = supabaseConfig();
+  if (!token || !list.length || !config) return false;
+  let claimed = '';
+  try { claimed = String(JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')).email || '').toLowerCase(); } catch { return false; }
+  if (!list.includes(claimed)) return false;
+  try {
+    const response = await fetch(`${config.url}/auth/v1/user`, { headers: { apikey: config.key, Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8000) });
+    if (!response.ok) return false;
+    const user = await response.json();
+    return Boolean(user?.email_confirmed_at) && list.includes(String(user.email || '').toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { supabaseConfig, dailyLimit, supabaseRpc, isAdminSession };

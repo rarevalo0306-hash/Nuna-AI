@@ -25,14 +25,21 @@ function usageResetAt() {
 }
 function usageLine() {
   if (!authUsage) return ''
+  if (authUsage.admin) return authText(`Cuenta de administrador: sin límite diario. Hoy has enviado ${authUsage.used} mensajes.`, `Administrator account: no daily limit. You have sent ${authUsage.used} messages today.`)
   const left = Math.max(authUsage.limit - authUsage.used, 0)
   return authText(`Has usado ${authUsage.used} de ${authUsage.limit} mensajes de hoy (te quedan ${left}). Se renuevan ${usageResetAt()}.`,
     `You have used ${authUsage.used} of today's ${authUsage.limit} messages (${left} left). They reset ${usageResetAt()}.`)
 }
+// Asks the server, which knows whether this account is an administrator (no daily limit).
 async function refreshUsage() {
   if (!authClient || !authUser) return
-  const { data, error } = await authClient.rpc('ai_usage_today')
-  if (!error && Number.isInteger(data)) authUsage = { used: data, limit: authDailyLimit }
+  const token = await authAccessToken()
+  if (!token) return
+  try {
+    const response = await fetch('/api/chat', { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(15000) })
+    const data = await response.json()
+    if (response.ok) noteUsage(data)
+  } catch {}
 }
 async function authAccessToken() {
   if (!authClient) return ''
