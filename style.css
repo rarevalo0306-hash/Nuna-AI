@@ -53,3 +53,4 @@ body{--nuna-font-scale:1}body[data-font-size=small]{--nuna-font-scale:.9}body[da
 .auth-primary:hover{background:var(--accent);filter:brightness(1.1)}
 
 .auth-google{width:100%;padding:13px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:14px;font-size:14px;margin-top:10px}.auth-google:hover{border-color:var(--accent)}.auth-divider{text-align:center;font-size:12px;color:var(--muted);margin:20px 0}
+#openai-test{background:var(--card);color:var(--accent);border:1px solid var(--border);border-radius:20px;padding:9px 12px;font-size:12px}#openai-status{font-size:12px;line-height:1.6;color:var(--accent);margin:0 0 8px}#openai-status:empty{display:none}@media(max-width:600px){#openai-test{font-size:9px;padding:7px}.model{font-size:14px}.header-actions{gap:3px}}
