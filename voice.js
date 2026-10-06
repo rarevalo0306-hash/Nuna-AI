@@ -24,11 +24,12 @@ voiceNote.id = 'voice-note';
 const voiceActions = document.createElement('div');
 voiceActions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
 const voiceStart = document.createElement('button');
+const voiceCheck = document.createElement('button');
 const voiceMute = document.createElement('button');
 const voiceEnd = document.createElement('button');
-for (const button of [voiceStart, voiceMute, voiceEnd]) { button.type = 'button'; button.className = 'auth-google'; button.style.cssText = 'width:auto;flex:1;padding:8px 12px;border-radius:16px;min-height:44px'; }
+for (const button of [voiceStart, voiceCheck, voiceMute, voiceEnd]) { button.type = 'button'; button.className = 'auth-google'; button.style.cssText = 'width:auto;flex:1;padding:8px 12px;border-radius:16px;min-height:44px'; }
 voiceMute.hidden = voiceEnd.hidden = true;
-voiceActions.append(voiceStart, voiceMute, voiceEnd);
+voiceActions.append(voiceStart, voiceCheck, voiceMute, voiceEnd);
 const voiceAudio = document.createElement('audio');
 voiceAudio.autoplay = true;
 voiceAudio.controls = true;
@@ -64,6 +65,9 @@ function renderVoice() {
   voiceOpen.setAttribute('aria-label', voiceDialog.hidden ? (es ? 'Abrir controles de voz' : 'Open voice controls') : (es ? 'Cerrar controles de voz' : 'Close voice controls'));
   voiceClose.setAttribute('aria-label', es ? 'Finalizar y cerrar voz' : 'End and close voice');
   voiceStart.textContent = vText('Comenzar prueba de voz', 'Start voice test');
+  voiceCheck.textContent = vText('Comprobar conexión', 'Check connection');
+  voiceCheck.hidden = running;
+  voiceCheck.disabled = voiceStarting;
   voiceStart.disabled = voiceStarting;
   voiceStart.hidden = running;
   voiceMute.hidden = voiceEnd.hidden = !running;
@@ -198,6 +202,7 @@ function closeInlineVoice() { stopRealVoice(); voiceDialog.hidden=true; voiceOpe
 voiceOpen.onclick=()=>{if(!voiceDialog.hidden){closeInlineVoice();return;}voiceDialog.hidden=false;voiceOpen.setAttribute('aria-expanded','true');renderVoice();};
 voiceClose.onclick=closeInlineVoice;
 voiceStart.onclick=startRealVoice;
+voiceCheck.onclick=async()=>{voiceCheck.disabled=true;voiceSetStatus('Comprobando acceso a OpenAI…','Checking OpenAI access…');try{const response=await fetch('/api/voice',{headers:await aiAuthHeaders(),signal:AbortSignal.timeout(15000)});const data=await response.json();if(!response.ok)throw Object.assign(new Error('voice'),{code:data.error});voiceSetStatus('OpenAI disponible · pulsa comenzar para probar el audio.','OpenAI available · press start to test audio.');}catch(error){const [es,en]=voiceFailure(error);voiceSetStatus(es,en);}finally{voiceCheck.disabled=false;}};
 voiceEnd.onclick=()=>{stopRealVoice();voiceSetStatus('Voz finalizada · micrófono apagado', 'Voice ended · microphone off');};
 voiceMute.onclick=()=>{voiceMuted=!voiceMuted;voiceConnection?.mute(voiceMuted);voiceSetStatus(voiceMuted?'Micrófono silenciado':'Te escucho',voiceMuted?'Microphone muted':'Listening');};
 // Stop audio on navigation, backgrounding and logout. Typed turns wait until voice has ended.
