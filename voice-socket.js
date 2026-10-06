@@ -20,7 +20,7 @@ async function connectRealtimeSocket({signal,generation}){
  const send=event=>{if(active()&&socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify(event))};
  const silence=()=>{for(const node of playing){node.onended=null;try{node.stop()}catch{};node.disconnect()}playing.clear();nextAudio=0;voiceSpeaking=false};
  const close=()=>{if(closed)return;closed=true;signal.removeEventListener('abort',close);silence();if(capture){capture.port.onmessage=null;capture.disconnect()}source?.disconnect();stream?.getTracks().forEach(track=>track.stop());if(socket){socket.onmessage=socket.onclose=socket.onerror=null;socket.close()}releaseRealtimeAudio()};
- const fail=(reason='network')=>{if(!active())return;stopRealVoice();const messages={network:['Se perdió la conexión de audio. Vuelve a conectar.','The audio connection was lost. Please reconnect.'],upload:['La red no pudo enviar el audio a tiempo. Vuelve a conectar.','The network could not send audio in time. Please reconnect.'],playback:['No se pudo reproducir el audio. Vuelve a conectar.','Audio could not be played. Please reconnect.'],service:['El servicio cerró la sesión de audio. Vuelve a conectar.','The service closed the audio session. Please reconnect.']};const [es,en]=messages[reason]||messages.network;voiceSetStatus(es,en)};
+ const fail=(reason='network')=>{if(!active())return;stopRealVoice();const messages={network:['Se perdió la conexión de audio. Vuelve a conectar.','The audio connection was lost. Please reconnect.'],upload:['La red no pudo enviar el audio a tiempo. Vuelve a conectar.','The network could not send audio in time. Please reconnect.'],queue:['La respuesta acumuló demasiado audio. Vuelve a conectar.','The reply accumulated too much audio. Please reconnect.'],format:['El audio recibido no se pudo interpretar. Vuelve a conectar.','The received audio could not be decoded. Please reconnect.'],playback:['No se pudo reproducir el audio. Vuelve a conectar.','Audio could not be played. Please reconnect.'],service:['El servicio cerró la sesión de audio. Vuelve a conectar.','The service closed the audio session. Please reconnect.']};const [es,en]=messages[reason]||messages.network;voiceSetStatus(es,en)};
  signal.addEventListener('abort',close,{once:true});
  try{
   const headers=await aiAuthHeaders(),token=await authAccessToken();if(token)headers.Authorization='Bearer '+token;
@@ -66,12 +66,12 @@ async function connectRealtimeSocket({signal,generation}){
     }
     if(event.type==='response.output_audio.delta'){
      try{
-      const bytes=Uint8Array.from(atob(event.delta),c=>c.charCodeAt(0));if(bytes.length%2||bytes.length>1048576)throw new Error('invalid_audio');
+      const bytes=Uint8Array.from(atob(event.delta),c=>c.charCodeAt(0));if(bytes.length%2||bytes.length>1048576)throw Object.assign(new Error('invalid_audio'),{voiceReason:'format'});
       if(!bytes.length)return;
       if(context.state!=='running'){voiceListen.hidden=false;voiceSetStatus('Pulsa escuchar para activar el sonido.','Press listen to enable sound.');context.resume().catch(()=>{});}
       // Realtime can generate a full reply faster than playback. Keep room for
       // the complete bounded response instead of disconnecting at 30 seconds.
-      if(nextAudio-context.currentTime>120)throw new Error('audio_queue_full');
+      if(nextAudio-context.currentTime>120)throw Object.assign(new Error('audio_queue_full'),{voiceReason:'queue'});
       const buffer=context.createBuffer(1,bytes.length/2,24000),samples=buffer.getChannelData(0),view=new DataView(bytes.buffer);
       for(let i=0;i<samples.length;i++)samples[i]=view.getInt16(i*2,true)/32768;
       const node=context.createBufferSource();node.buffer=buffer;node.connect(context.destination);
@@ -79,7 +79,7 @@ async function connectRealtimeSocket({signal,generation}){
       if(itemId!==event.item_id){itemId=event.item_id;itemStart=when;itemSamples=0}itemSamples+=samples.length;outputDone=false;
       playing.add(node);node.onended=()=>{playing.delete(node);node.disconnect();if(active()&&playing.size===0&&outputDone){voiceSpeaking=false;voiceSetStatus(muted?'Micrófono silenciado':'Te escucho',muted?'Microphone muted':'Listening')}};
       voiceSpeaking=true;voiceSetStatus('NUNA está hablando…','NUNA is speaking…');node.start(when);
-     }catch{fail('playback')}
+     }catch(error){fail(error.voiceReason||'playback')}
      return;
     }
     if(event.type==='response.output_audio.done'){outputDone=true;if(!playing.size){voiceSpeaking=false;voiceSetStatus('Te escucho','Listening')}return}

@@ -32,6 +32,7 @@ test('Realtime streams both ways, interrupts queued speech, and releases every r
  assert.equal(sent[0].type,'conversation.item.create');capture.port.onmessage({data:new Float32Array(2400)});assert.equal(sent.length,1);
  connection.start();capture.port.onmessage({data:new Float32Array(2400).fill(.2)});assert.equal(sent.at(-1).type,'input_audio_buffer.append');assert.equal(Buffer.from(sent.at(-1).audio,'base64').length,4800);
  const pcm=env.transport.voicePCMBase64(new Float32Array(2400).fill(.3));socket.onmessage({data:JSON.stringify({type:'response.output_audio.delta',item_id:'reply',delta:pcm})});assert.equal(env.voiceSpeaking,true);
+ for(let i=0;i<400;i++)socket.onmessage({data:JSON.stringify({type:'response.output_audio.delta',item_id:'reply',delta:pcm})});assert.equal(env.voiceSpeaking,true);assert.equal(stops,0);
  socket.onmessage({data:JSON.stringify({type:'input_audio_buffer.speech_started'})});assert.equal(env.voiceSpeaking,false);assert.equal(sent.at(-1).type,'conversation.item.truncate');assert.ok(playbackStopped>0);
  connection.mute(true);const count=sent.length;capture.port.onmessage({data:new Float32Array(2400)});assert.equal(sent.length,count);assert.equal(track.enabled,false);
  abort.abort();assert.equal(stops,1);assert.equal(contextClosed,1);assert.equal(socket.readyState,3);assert.equal(capture.port.onmessage,null);connection.close();assert.equal(stops,1);
