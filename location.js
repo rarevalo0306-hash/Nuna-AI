@@ -28,11 +28,9 @@ async function beginNunaLocation(){
  const owner=locationChoiceKey();if(locationOwner===owner)return;locationOwner=owner;locationGeneration++;nunaLocation=null;document.getElementById('location-offer')?.remove();
  if(locationChoice()==='off')return;
  if(locationChoice()==='allow'){
-  // Reuse an existing browser grant. Never trigger repeated native prompts on each open.
-  try{const permission=await navigator.permissions.query({name:'geolocation'});if(permission.state==='granted'){await requestNunaLocation();return}if(permission.state==='denied'){rememberLocationChoice('off');return}}catch{}
-  // Safari may grant location only temporarily or omit Permissions API support.
-  // Keep the saved choice without resurfacing the offer or requesting permission.
-  // The user can explicitly renew location from Settings.
+  // Renew the location on each open for accounts that opted in.
+  // The browser controls whether its permission prompt appears again.
+  await requestNunaLocation();
   return;
  }
  showLocationOffer();

@@ -17,11 +17,9 @@ test('location is scoped to the consenting account and late grants cannot undo r
  env.authUser={id:'account-b'};api.rememberLocationChoice('allow');assert.equal(api.locationForAI(),null);env.authUser={id:'account-a'};const late=api.requestNunaLocation();api.stopLocation();succeed({coords:{latitude:25,longitude:-80,accuracy:15}});assert.equal(await late,false);assert.equal(api.locationForAI(),null);assert.equal(stopped,0);
 });
 
-test('a saved choice does not resurface the offer when Safari permission expires or cannot be queried',async()=>{
- for(const state of ['prompt','unsupported']){
-  let offers=0,calls=0;
-  const element=()=>({append(){},setAttribute(){},remove(){},style:{}});
-  const env={navigator:{permissions:{query:async()=>{if(state==='unsupported')throw Error('unsupported');return {state}}},geolocation:{getCurrentPosition(){calls++}}},authUser:{id:'account-a'},lang:'es',localStorage:{getItem:()=> 'allow'},document:{createElement:element,head:element(),getElementById:()=>null,querySelector:()=>({prepend(){offers++}})},window:{addEventListener(){}},Date,Number,Math,Promise};
-  vm.createContext(env);vm.runInContext(fs.readFileSync('location.js','utf8')+'\nthis.begin=beginNunaLocation;',env);await env.begin();assert.equal(offers,0);assert.equal(calls,0);
- }
+test('opening an opted-in account refreshes location once without resurfacing the app offer',async()=>{
+ let offers=0,calls=0;
+ const element=()=>({append(){},setAttribute(){},remove(){},style:{}});
+ const env={navigator:{geolocation:{getCurrentPosition(success){calls++;success({coords:{latitude:25.76,longitude:-80.19,accuracy:20}})}}},authUser:{id:'account-a'},lang:'es',localStorage:{getItem:()=> 'allow'},document:{createElement:element,head:element(),getElementById:()=>null,querySelector:()=>({prepend(){offers++}})},window:{addEventListener(){}},Date,Number,Math,Promise};
+ vm.createContext(env);vm.runInContext(fs.readFileSync('location.js','utf8')+'\nthis.begin=beginNunaLocation;',env);await env.begin();await env.begin();assert.equal(offers,0);assert.equal(calls,1);
 });
