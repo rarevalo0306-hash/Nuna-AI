@@ -1,7 +1,7 @@
 let projects=[],hiddenChats=[],assignments={},currentProject=null,currentSection=null,selecting=false,selectedChats=new Set();
 try{projects=JSON.parse(localStorage.getItem('nuna-projects')||'[]');hiddenChats=JSON.parse(localStorage.getItem('nuna-hidden')||'[]');assignments=JSON.parse(localStorage.getItem('nuna-assignments')||'{}')}catch{}
 function persistProjects(){try{localStorage.setItem('nuna-projects',JSON.stringify(projects));localStorage.setItem('nuna-hidden',JSON.stringify(hiddenChats));localStorage.setItem('nuna-assignments',JSON.stringify(assignments))}catch{}}
-const projectSection=document.createElement('section');projectSection.className='project-section';projectSection.innerHTML='<div class="project-heading"><span id="projects-label"></span><button class="project-add" id="project-add">＋</button></div><div id="project-list"></div><div class="sidebar-tools"><button id="select-chats"></button><button id="delete-selected" hidden></button></div><div class="project-toolbar" id="project-assignment"></div>';document.querySelector('.history-label').before(projectSection);
+const projectSection=document.createElement('section');projectSection.className='project-section';projectSection.innerHTML='<div class="project-heading"><span id="projects-label"></span><button class="project-add" id="project-add">＋</button></div><div id="project-list"></div><div class="sidebar-tools" hidden><button id="select-chats"></button><button id="delete-selected" hidden></button></div><div class="project-toolbar" id="project-assignment"></div>';document.querySelector('.history-label').before(projectSection);
 const expandedProjects=new Set(),expandedSections=new Set();
 const projectChatContainers=new Map(),sectionChatContainers=new Map();
 function refreshProjects(){
@@ -154,3 +154,5 @@ const taskStyle=document.createElement('style');taskStyle.textContent=`
 .project-task-options button{display:block;font-size:12px;min-height:42px;border:1px solid var(--border);background:var(--side);color:var(--text);border-radius:10px;padding:8px}
 .project-task-options button[aria-pressed=true]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,var(--card));color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 `;document.head.append(taskStyle);
+
+const bulkHideStyle=document.createElement('style');bulkHideStyle.textContent='.sidebar-tools[hidden]{display:none!important}';document.head.append(bulkHideStyle);
