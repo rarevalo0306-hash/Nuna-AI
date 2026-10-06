@@ -610,6 +610,7 @@ async function handleAuthChange(event, session) {
   const changed = (user?.id || null) !== (authUser?.id || null)
   if (changed && authUser) { authUser = null; leaveAccountData() }
   authUser = user
+  if(changed)window.dispatchEvent(new Event('nuna-account-changed'))
   updateAuthUI()
   if (changed && user) {
     if (authDialog.open && authMode !== 'recovery') authDialog.close()

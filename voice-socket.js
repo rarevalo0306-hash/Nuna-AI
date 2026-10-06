@@ -25,7 +25,7 @@ async function connectRealtimeSocket({signal,generation}){
  try{
   const headers=await aiAuthHeaders(),token=await authAccessToken();if(token)headers.Authorization='Bearer '+token;
   voiceSetStatus('Comprobando tu sesión…','Checking your session…');
-  const response=await fetch('/api/voice',{method:'POST',headers:{...headers,'Content-Type':'application/json'},signal,body:JSON.stringify({transport:'websocket',language:lang,timeZone:deviceTimeZone(),project:projectContextForChat(voiceChat)})});
+  const response=await fetch('/api/voice',{method:'POST',headers:{...headers,'Content-Type':'application/json'},signal,body:JSON.stringify({transport:'websocket',language:lang,timeZone:deviceTimeZone(),location:locationForAI(),project:projectContextForChat(voiceChat)})});
   const credentials=await response.json();if(!response.ok)throw Object.assign(new Error('voice'),{code:credentials.error});
   if(!active())throw new DOMException('Cancelled','AbortError');
   voiceSetStatus('Permite el micrófono si Safari lo solicita…','Allow the microphone if Safari asks…');

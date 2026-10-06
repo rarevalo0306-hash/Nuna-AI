@@ -269,7 +269,7 @@ const voiceAdapters = {
         await pc.setLocalDescription(await pc.createOffer());
         await gatherVoiceCandidates(pc,signal);
         voiceSetStatus('Preparando la respuesta de voz…','Preparing the voice response…');
-        const response = await fetch('/api/voice',{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({sdp:pc.localDescription.sdp,language:lang,timeZone:deviceTimeZone(),project:projectContextForChat(voiceChat)}),signal});
+        const response = await fetch('/api/voice',{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({sdp:pc.localDescription.sdp,language:lang,timeZone:deviceTimeZone(),location:locationForAI(),project:projectContextForChat(voiceChat)}),signal});
         const answer = await response.json();
         if (!response.ok) throw Object.assign(new Error('voice'),{code:answer.error});
         if (generation !== voiceGeneration) throw new DOMException('Cancelled','AbortError');
