@@ -21,9 +21,9 @@ module.exports = async function handler(req, res) {
     try { body = JSON.parse(body); } catch { return res.status(400).json({ error: 'invalid_request' }); }
   }
   const provider = body?.provider || 'openai';
-  if (!['openai', 'anthropic', 'deepseek'].includes(provider)) return res.status(400).json({ error: 'unsupported_provider' });
-  const key = { openai: process.env.OPENAI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY, deepseek: process.env.DEEPSEEK_API_KEY }[provider];
-  const model = { openai: process.env.NUNA_OPENAI_MODEL || 'gpt-4.1-mini', anthropic: process.env.NUNA_ANTHROPIC_MODEL, deepseek: process.env.NUNA_DEEPSEEK_MODEL || 'deepseek-chat' }[provider];
+  if (!['openai', 'anthropic', 'deepseek', 'gemini'].includes(provider)) return res.status(400).json({ error: 'unsupported_provider' });
+  const key = { openai: process.env.OPENAI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY, deepseek: process.env.DEEPSEEK_API_KEY, gemini: process.env.GEMINI_API_KEY }[provider];
+  const model = { openai: process.env.NUNA_OPENAI_MODEL || 'gpt-4.1-mini', anthropic: process.env.NUNA_ANTHROPIC_MODEL, deepseek: process.env.NUNA_DEEPSEEK_MODEL || 'deepseek-chat', gemini: process.env.NUNA_GEMINI_MODEL || 'gemini-2.5-flash' }[provider];
   if (!key || !model) return res.status(503).json({ error: 'not_configured' });
   const messages = body?.messages;
   if (!Array.isArray(messages) || !messages.length || messages.length > 30 ||
@@ -36,12 +36,15 @@ module.exports = async function handler(req, res) {
     const instructions = 'You are NUNA AI, a helpful assistant. Reply in the language of the user. Never claim to perform actions that have not been performed.';
     const isAnthropic = provider === 'anthropic';
     const isDeepSeek = provider === 'deepseek';
-    const response = await fetch(isAnthropic ? 'https://api.anthropic.com/v1/messages' : isDeepSeek ? 'https://api.deepseek.com/chat/completions' : 'https://api.openai.com/v1/responses', {
+    const isGemini = provider === 'gemini';
+    const response = await fetch(isGemini ? `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent` : isAnthropic ? 'https://api.anthropic.com/v1/messages' : isDeepSeek ? 'https://api.deepseek.com/chat/completions' : 'https://api.openai.com/v1/responses', {
       method: 'POST',
-      headers: isAnthropic
+      headers: isGemini ? { 'x-goog-api-key': key, 'Content-Type': 'application/json' } : isAnthropic
         ? { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' }
         : { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(isAnthropic
+      body: JSON.stringify(isGemini
+        ? { systemInstruction: { parts: [{ text: instructions }] }, contents: messages.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: 1200 } }
+        : isAnthropic
         ? { model, system: instructions, messages, max_tokens: 1200 }
         : isDeepSeek ? { model, messages: [{ role: 'system', content: instructions }, ...messages], max_tokens: 1200, stream: false }
         : { model, instructions, input: messages, max_output_tokens: 1200, store: false }),
@@ -51,7 +54,9 @@ module.exports = async function handler(req, res) {
       return res.status(response.status === 429 ? 429 : 502).json({ error: response.status === 429 ? 'provider_limit' : 'provider_error' });
     }
     const data = await response.json();
-    const text = (isAnthropic
+    const text = (isGemini
+      ? (data.candidates?.[0]?.content?.parts || []).filter(part => typeof part.text === 'string' && !part.thought).map(part => part.text)
+      : isAnthropic
       ? (data.content || []).filter(item => item.type === 'text').map(item => item.text)
       : isDeepSeek ? [data.choices?.[0]?.message?.content || '']
       : (data.output || []).filter(item => item.type === 'message')

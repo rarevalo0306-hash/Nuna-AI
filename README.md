@@ -39,3 +39,7 @@ La prueba privada también admite Anthropic Messages API. En Vercel añade `ANTH
 ## DeepSeek
 
 La prueba privada admite DeepSeek Chat Completions API. Configura `DEEPSEEK_API_KEY` en Vercel como secreto y opcionalmente `NUNA_DEEPSEEK_MODEL` (por defecto `deepseek-chat`). Se reutiliza `NUNA_ACCESS_CODE`. Selecciona DeepSeek y activa «Probar IA». Se admite solo texto. Verifica acceso y crédito en la cuenta del proveedor; una prueba simulada no demuestra disponibilidad real.
+
+## Google Gemini
+
+Configura `GEMINI_API_KEY` como secreto en Vercel. `NUNA_GEMINI_MODEL` es opcional; por defecto `gemini-2.5-flash`. Se usa GenerateContent API con clave en cabecera, historial user/model y límite de salida. Selecciona Gemini y activa «Probar IA». Se reutiliza `NUNA_ACCESS_CODE`. La disponibilidad y cuota del modelo deben verificarse con tu cuenta; solo se ha probado el recorrido con respuestas simuladas.
