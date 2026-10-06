@@ -69,7 +69,9 @@ async function connectRealtimeSocket({signal,generation}){
       const bytes=Uint8Array.from(atob(event.delta),c=>c.charCodeAt(0));if(bytes.length%2||bytes.length>1048576)throw new Error('invalid_audio');
       if(!bytes.length)return;
       if(context.state!=='running'){voiceListen.hidden=false;voiceSetStatus('Pulsa escuchar para activar el sonido.','Press listen to enable sound.');context.resume().catch(()=>{});}
-      if(nextAudio-context.currentTime>30)throw new Error('audio_queue_full');
+      // Realtime can generate a full reply faster than playback. Keep room for
+      // the complete bounded response instead of disconnecting at 30 seconds.
+      if(nextAudio-context.currentTime>120)throw new Error('audio_queue_full');
       const buffer=context.createBuffer(1,bytes.length/2,24000),samples=buffer.getChannelData(0),view=new DataView(bytes.buffer);
       for(let i=0;i<samples.length;i++)samples[i]=view.getInt16(i*2,true)/32768;
       const node=context.createBufferSource();node.buffer=buffer;node.connect(context.destination);
