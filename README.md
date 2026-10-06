@@ -118,3 +118,6 @@ Each account receives a **15,000,000,000-byte total file allowance**, not an add
 Existing Supabase files stay readable. After releasing the R2 frontend, remove only the `nuna_files_upload` INSERT policy using `supabase/r2-cutover.sql`; this closes the old upload route without deleting files or changing their download permissions. Apply `supabase/account-file-usage.sql` before release. The usage RPC runs with the signed-in user's privileges and RLS.
 
 Validation: `node cloudflare/worker.test.mjs` and `node cloudflare/frontend.test.cjs`. Deploy the Worker with pinned Wrangler 4.148.0 using `cloudflare/wrangler.jsonc`, then verify authenticated upload, reload, download, and the private bucket before releasing the frontend. Cloudflare Workers and Durable Objects have their own request/compute/storage allowances; R2 file storage pricing alone is not the entire infrastructure bill.
+
+### Video uploads and administrator allowance
+Videos accept up to 150,000,000 bytes per file; other files retain the 10 MiB cap. Uploads stream through FixedLengthStream to R2 and reject mismatched lengths. The server validates the Supabase identity and exempts only ADMIN_USER_ID from the total 15 GB quota; clients cannot supply this exemption. Administrator files remain subject to upload caps and normal provider billing.

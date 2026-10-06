@@ -5,6 +5,8 @@ vm.runInContext(fs.readFileSync('storage.js','utf8'),ctx);
 (async()=>{
  const file=new Blob(['test'],{type:'image/png'});file.name='foto.png';const saved=await ctx.storeAccountArtifact(file);
  assert.equal(saved.provider,'r2');assert.equal(saved.owner,'owner-a');assert.equal(requests[0].opts.headers.get('Authorization'),'Bearer valid-token');assert.equal(requests[0].opts.headers.get('X-File-Name'),'foto.png');assert.equal(requests[0].opts.body,file);
+ const video=new Blob([new Uint8Array(150000000)],{type:'video/mp4'});video.name='video.mp4';await ctx.storeAccountArtifact(video);assert.equal(requests.at(-1).opts.headers.get('X-File-Size'),'150000000');
+ const oversize=new Blob([video,'x'],{type:'video/mp4'});await assert.rejects(ctx.storeAccountArtifact(oversize),/150 MB/);
  assert.equal(ctx.fileBytes(15000000000),'15.00 GB');
  ctx.fetch=async()=>Response.json({error:'quota_exceeded'},{status:409});await assert.rejects(ctx.storeAccountArtifact(file),/15 GB/);
  ctx.authUser=null;await assert.rejects(ctx.storeAccountArtifact(file),/Inicia sesión/);

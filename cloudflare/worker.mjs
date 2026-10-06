@@ -11,14 +11,12 @@ function categoryFor(name,type){
  if(type.startsWith('text/')||type==='application/pdf'||/\.(pdf|docx?|xlsx?|pptx?|txt|csv|md|rtf|odt|ods|json)$/i.test(name))return'documents';
  return'other';
 }
-async function readBounded(request){
- if(Number(request.headers.get('Content-Length'))>MAX_FILE)throw Error('file_too_large');
- if(!request.body)throw Error('empty_file');
- const reader=request.body.getReader(),chunks=[];let size=0;
- for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;
-  if(size>MAX_FILE){await reader.cancel();throw Error('file_too_large')}chunks.push(value)}
- if(!size)throw Error('empty_file');const body=new Uint8Array(size);let offset=0;
- for(const chunk of chunks){body.set(chunk,offset);offset+=chunk.byteLength}return body;
+function uploadSize(request){
+ const name=decodeURIComponent(request.headers.get('X-File-Name')||'archivo'),type=request.headers.get('Content-Type')||'';
+ const limit=categoryFor(name,type)==='videos'?150_000_000:MAX_FILE;
+ const size=Number(request.headers.get('X-File-Size')||request.headers.get('Content-Length'));
+ if(!Number.isSafeInteger(size)||size<=0||!request.body)throw Error('empty_file');
+ if(size>limit)throw Error('file_too_large');return size;
 }
 export default {
  async fetch(request,env){
@@ -45,23 +43,24 @@ export default {
        if(!Number.isSafeInteger(legacy)||legacy<0)throw Error('usage_unavailable');
       }
       const headers=new Headers({'X-Owner':user.id,'X-Legacy-Bytes':String(legacy)});
+      headers.set('X-Account-Limit',user.id===env.ADMIN_USER_ID?'unlimited':String(QUOTA));
       let body;
       if(request.method==='POST'){
        if(match[1])return json({error:'not_found'},404);
-       body=await readBounded(request);
+       const size=uploadSize(request);body=request.body;headers.set('X-File-Size',String(size));
        let name;try{name=decodeURIComponent(request.headers.get('X-File-Name')||'archivo')}catch{return json({error:'invalid_name'},400)}
        name=name.normalize('NFKC').replace(/[\x00-\x1f\x7f/\\]/g,'_').slice(0,140)||'archivo';
        const type=(request.headers.get('Content-Type')||'application/octet-stream').split(';')[0].toLowerCase().slice(0,100);
        headers.set('X-File-Name',encodeURIComponent(name));headers.set('Content-Type',type);
       }
       const stub=env.ACCOUNTS.get(env.ACCOUNTS.idFromName(user.id));
-      response=await stub.fetch(new Request('https://account.internal'+url.pathname,{method:request.method,headers,body}));
+      response=await stub.fetch(new Request('https://account.internal'+url.pathname,{method:request.method,headers,body,...(body?{duplex:'half'}:{})}));
      }
     }
    }
   }catch(error){response=json({error:['file_too_large','empty_file'].includes(error.message)?error.message:'storage_unavailable'},['file_too_large','empty_file'].includes(error.message)?413:503)}
   const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('X-Content-Type-Options','nosniff');
-  if(origin===ORIGIN){headers.set('Access-Control-Allow-Origin',ORIGIN);headers.set('Vary','Origin');headers.set('Access-Control-Allow-Methods','GET, POST, OPTIONS');headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, X-File-Name');headers.set('Access-Control-Max-Age','600')}
+  if(origin===ORIGIN){headers.set('Access-Control-Allow-Origin',ORIGIN);headers.set('Vary','Origin');headers.set('Access-Control-Allow-Methods','GET, POST, OPTIONS');headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, X-File-Name, X-File-Size');headers.set('Access-Control-Max-Age','600')}
   return new Response(response.body,{status:response.status,headers});
  }
 };
@@ -73,9 +72,10 @@ export class AccountFiles {
  async fetch(request){
   const owner=request.headers.get('X-Owner');if(!uuid.test(owner||''))return json({error:'forbidden'},403);
   const url=new URL(request.url),id=url.pathname.split('/')[2],legacy=Number(request.headers.get('X-Legacy-Bytes')||0);
+  const limit=request.headers.get('X-Account-Limit')==='unlimited'?null:QUOTA;
   if(request.method==='GET'&&!id){
    const files=this.sql.exec("SELECT id,key,name,type,category,size,created_at FROM files WHERE state='ready' ORDER BY created_at DESC").toArray();
-   return json({files,usedBytes:this.usage()+legacy,limitBytes:QUOTA});
+   return json({files,usedBytes:this.usage()+legacy,limitBytes:limit});
   }
   if(request.method==='GET'&&uuid.test(id||'')){
    const file=this.sql.exec("SELECT * FROM files WHERE id=? AND state='ready'",id).toArray()[0];
@@ -84,9 +84,9 @@ export class AccountFiles {
    return new Response(object.body,{headers:{'Content-Type':'application/octet-stream','Content-Disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(file.name),'Cache-Control':'no-store','Content-Length':String(object.size)}});
   }
   if(request.method!=='POST'||id)return json({error:'not_found'},404);
-  const body=await readBounded(request),size=body.byteLength;
+  const size=uploadSize(request);
   // Synchronous SQLite check + reservation is atomic before any network await.
-  if(this.usage()+legacy+size>QUOTA)return json({error:'quota_exceeded',limitBytes:QUOTA},409);
+  if(limit!==null&&this.usage()+legacy+size>limit)return json({error:'quota_exceeded',limitBytes:QUOTA},409);
   const name=decodeURIComponent(request.headers.get('X-File-Name')||'archivo'),type=request.headers.get('Content-Type')||'application/octet-stream';
   const category=categoryFor(name,type),fileId=crypto.randomUUID(),key=owner+'/'+category+'/'+fileId;
   const created=new Date().toISOString();
@@ -94,7 +94,12 @@ export class AccountFiles {
   try{
    // Recovery reconciles interrupted uploads; pending reservations still consume quota.
    await this.ctx.storage.setAlarm(Date.now()+300000);
-   await this.env.FILES.put(key,body,{httpMetadata:{contentType:type}});
+   const stream=new FixedLengthStream(size);
+   const abort=new AbortController();
+   const pumping=request.body.pipeTo(stream.writable,{signal:abort.signal});
+   // FixedLengthStream rejects both truncated and oversized bodies without buffering.
+   const results=await Promise.allSettled([this.env.FILES.put(key,stream.readable,{httpMetadata:{contentType:type}}).catch(async error=>{abort.abort();await stream.readable.cancel().catch(()=>{});throw error}),pumping]);
+   if(results.some(result=>result.status==='rejected'))throw Error('invalid_upload');
    this.sql.exec("UPDATE files SET state='ready' WHERE id=?",fileId);
    return json({id:fileId,key,name,size,type,category,created_at:created,provider:'r2'},201);
   }catch{
