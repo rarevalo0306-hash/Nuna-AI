@@ -10,9 +10,11 @@ const PROVIDERS = ['openai', 'anthropic', 'deepseek', 'gemini', 'grok', 'qwen'];
 
 // Read at request time so a redeploy with new variables is picked up.
 function providerConfig() {
+  // Trim so a pasted space or newline in Vercel does not break a key header or a model ID.
+  const env = name => (process.env[name] || '').trim();
   return {
-    key: { openai: process.env.OPENAI_API_KEY, anthropic: process.env.ANTHROPIC_API_KEY, deepseek: process.env.DEEPSEEK_API_KEY, gemini: process.env.GEMINI_API_KEY, grok: process.env.XAI_API_KEY, qwen: process.env.DASHSCOPE_API_KEY },
-    model: { openai: process.env.NUNA_OPENAI_MODEL || 'gpt-4.1-mini', anthropic: process.env.NUNA_ANTHROPIC_MODEL, deepseek: process.env.NUNA_DEEPSEEK_MODEL || 'deepseek-chat', gemini: process.env.NUNA_GEMINI_MODEL || 'gemini-2.5-flash', grok: process.env.NUNA_GROK_MODEL, qwen: process.env.NUNA_QWEN_MODEL || 'qwen-plus' }
+    key: { openai: env('OPENAI_API_KEY'), anthropic: env('ANTHROPIC_API_KEY'), deepseek: env('DEEPSEEK_API_KEY'), gemini: env('GEMINI_API_KEY'), grok: env('XAI_API_KEY'), qwen: env('DASHSCOPE_API_KEY') },
+    model: { openai: env('NUNA_OPENAI_MODEL') || 'gpt-4.1-mini', anthropic: env('NUNA_ANTHROPIC_MODEL'), deepseek: env('NUNA_DEEPSEEK_MODEL') || 'deepseek-chat', gemini: env('NUNA_GEMINI_MODEL') || 'gemini-2.5-flash', grok: env('NUNA_GROK_MODEL'), qwen: env('NUNA_QWEN_MODEL') || 'qwen-plus' }
   };
 }
 
@@ -30,7 +32,9 @@ async function listProviderModels(provider, key) {
       : (data.data || []).map(m => String(m.id || ''));
     // Leave out models that cannot hold a text chat (embeddings, audio, images, moderation).
     // Gemma rejects the system instruction this handler sends; legacy completion and agent-only models cannot hold this chat.
-    const usable = [...new Set(names)].filter(n => /^[\w.:\/-]{1,100}$/.test(n) && !/embed|tts|whisper|dall-e|moderation|audio|realtime|transcribe|image|imagen|veo|search|aqa|gemma|davinci|babbage|instruct|sora|computer-use|deep-research/i.test(n));
+    // Only each provider's own chat families, minus models that cannot hold this text chat.
+    const family = { gemini: /^gemini-/i, anthropic: /^claude-/i, deepseek: /^deepseek-/i, grok: /^grok-/i, openai: /^(gpt-|o\d|chatgpt-)/i, qwen: /^(qwen|qwq)/i }[provider];
+    const usable = [...new Set(names)].filter(n => /^[\w.:\/-]{1,100}$/.test(n) && family.test(n) && !/-vl|omni|asr|codex|embed|tts|whisper|dall-e|moderation|audio|realtime|transcribe|image|imagen|veo|search|aqa|gemma|davinci|babbage|instruct|sora|computer-use|deep-research/i.test(n));
     // Put the usual chat families first so the shortened list in the UI shows them.
     const rank = n => (/(^|[-_.])(flash|mini|haiku|chat|turbo|plus)([-_.]|$)/i.test(n) ? 0 : /pro|sonnet|opus|gpt|grok|qwen|deepseek|claude|gemini/i.test(n) ? 1 : 2) + (/preview|exp|latest|\d{4}-\d{2}-\d{2}|-\d{3}$/i.test(n) ? 0.5 : 0);
     return usable.sort((a, b) => rank(a) - rank(b)).slice(0, 40);
