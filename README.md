@@ -35,3 +35,7 @@ El servidor pide `store: false` en Responses API. Esto no equivale a una garant�
 ## Anthropic
 
 La prueba privada también admite Anthropic Messages API. En Vercel añade `ANTHROPIC_API_KEY` y `NUNA_ANTHROPIC_MODEL` (ID exacto de un modelo disponible en tu cuenta Anthropic). Se usa el mismo `NUNA_ACCESS_CODE`. El modelo Anthropic se configura explícitamente, sin asumir una versión disponible. Selecciona «Claude · Anthropic», activa «Probar IA» y envía texto. No envíes adjuntos: esta integración todavía es solo de texto. Las claves se mantienen en servidor. No se promete retención cero de datos por el proveedor.
+
+## DeepSeek
+
+La prueba privada admite DeepSeek Chat Completions API. Configura `DEEPSEEK_API_KEY` en Vercel como secreto y opcionalmente `NUNA_DEEPSEEK_MODEL` (por defecto `deepseek-chat`). Se reutiliza `NUNA_ACCESS_CODE`. Selecciona DeepSeek y activa «Probar IA». Se admite solo texto. Verifica acceso y crédito en la cuenta del proveedor; una prueba simulada no demuestra disponibilidad real.
