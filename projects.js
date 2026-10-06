@@ -210,3 +210,12 @@ const renameStyle=document.createElement('style');renameStyle.textContent=`
 .project-rename-form input{box-sizing:border-box;width:100%;margin:8px 0 10px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit;font-size:14px}
 .project-rename-form>div{display:flex;gap:6px}.project-rename-form button{width:auto;flex:1;text-align:center;border:1px solid var(--border)}
 `;document.head.append(renameStyle);
+
+const sidebarAd=document.createElement('aside');sidebarAd.className='sidebar-ad';sidebarAd.setAttribute('aria-label','Publicidad');sidebarAd.innerHTML='<span class="sidebar-ad-label">Publicidad</span><div class="sidebar-ad-art" aria-hidden="true"><svg viewBox="0 0 64 32"><path d="M3 16C20-3 41-3 59 29M3 16C20 35 41 35 59 3"/></svg></div><strong>Tu marca en NUNA</strong><p>Un espacio para conectar con nuevas ideas.</p><span class="sidebar-ad-available">Espacio disponible</span>';document.querySelector('.profile').before(sidebarAd);
+const adStyle=document.createElement('style');adStyle.textContent=`
+.sidebar-ad{display:block;width:100%;margin:12px 0 0;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;flex-shrink:0}
+.sidebar-ad-label{display:block;font-size:9px;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+.sidebar-ad-art{height:58px;border-radius:9px;background:radial-gradient(ellipse at 50% 100%,color-mix(in srgb,var(--accent) 24%,transparent),transparent 70%),var(--side);display:grid;place-items:center;margin-bottom:8px}
+.sidebar-ad-art svg{width:39px;opacity:.6}.sidebar-ad strong{font-size:12px;font-weight:600}.sidebar-ad p{font-size:11px;color:var(--muted);line-height:1.4;margin:5px 0 7px}.sidebar-ad-available{font-size:10px;color:var(--accent)}
+@media(max-height:650px){.sidebar-ad-art{height:34px}.sidebar-ad p{display:none}}
+`;document.head.append(adStyle);
