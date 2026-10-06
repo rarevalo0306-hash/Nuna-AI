@@ -93,7 +93,7 @@ let voiceChat = null, voiceOwner = null, voiceRecords = [], voiceBase = [], voic
 const vText = (es, en) => lang === 'es' ? es : en;
 function renderVoice() {
   const es = lang === 'es', running = Boolean(voiceConnection);
-  voiceLabel.textContent = es ? 'NUNA · Voz · OpenAI' : 'NUNA · Voice · OpenAI';
+  voiceLabel.textContent = es ? 'NUNA · Voz' : 'NUNA · Voice';
   voiceDialog.setAttribute('aria-label', es ? 'Controles de voz' : 'Voice controls');
   voiceOpen.setAttribute('aria-label', voiceDialog.hidden ? (es ? 'Abrir controles de voz' : 'Open voice controls') : (es ? 'Cerrar controles de voz' : 'Close voice controls'));
   voiceClose.setAttribute('aria-label', es ? 'Finalizar y cerrar voz' : 'End and close voice');
@@ -119,16 +119,16 @@ function renderVoice() {
   voiceEnd.setAttribute('aria-label', endLabel); voiceEnd.title = endLabel;
   voiceEnd.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   voiceStatus.textContent = voiceMessage || vText('Lista para probar · micrófono apagado', 'Ready to test · microphone off');
-  voiceNote.textContent = vText('Prueba para administradores. OpenAI recibe tu audio y las transcripciones se guardan en este chat. La voz es generada por IA. Este navegador termina la prueba a los 5 minutos; el audio tiene costo.', 'Administrator pilot. OpenAI receives your audio and transcripts are saved in this chat. The voice is AI generated. This browser ends the test after 5 minutes; audio has a cost.');
+  voiceNote.textContent = vText('Prueba para administradores. Tu audio se procesa para responderte y las transcripciones se guardan en este chat. La voz es generada por IA. Este navegador termina la prueba a los 5 minutos; el audio tiene costo.', 'Administrator pilot. Your audio is processed to respond and transcripts are saved in this chat. The voice is AI generated. This browser ends the test after 5 minutes; audio has a cost.');
 }
 function voiceSetStatus(es, en) { voiceMessage = vText(es, en); renderVoice(); }
 function voiceFailure(error) {
   const messages = {
     voice_test_only:['Esta prueba requiere tu código de administrador. Configúralo desde el acceso de administrador de NUNA.', 'This pilot requires your administrator code. Set it through NUNA administrator access.'],
-    provider_key_missing:['Falta configurar OpenAI en el servidor.', 'OpenAI is not configured on the server.'],
+    provider_key_missing:['Falta configurar el servicio de voz.', 'The voice service is not configured.'],
     provider_model_missing:['Tu clave no tiene acceso al modelo de voz configurado.', 'Your key cannot access the configured voice model.'],
-    provider_auth:['OpenAI rechazó el acceso. Revisa los permisos de la clave.', 'OpenAI rejected access. Check key permissions.'],
-    provider_limit:['OpenAI alcanzó su límite de uso. Inténtalo más tarde.', 'OpenAI reached its usage limit. Try later.'],
+    provider_auth:['El servicio de voz rechazó el acceso. Revisa los permisos de la clave.', 'The voice service rejected access. Check key permissions.'],
+    provider_limit:['El servicio de voz alcanzó su límite de uso. Inténtalo más tarde.', 'The voice service reached its usage limit. Try later.'],
     NotAllowedError:['No se permitió el micrófono. Actívalo en los permisos de este sitio.', 'Microphone permission was denied. Enable it in site permissions.'],
     NotFoundError:['No se encontró un micrófono.', 'No microphone was found.']
   };
@@ -220,7 +220,7 @@ async function startRealVoice() {
   if (!window.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) { voiceSetStatus('Este navegador no admite voz. Prueba Safari o Chrome actualizado.', 'This browser does not support voice. Try an updated Safari or Chrome.'); return; }
   if (openAIBusy) { voiceSetStatus('Espera a que termine la respuesta del chat.', 'Wait for the chat reply to finish.'); return; }
   voiceStarting=true; const generation=++voiceGeneration;
-  voiceSetStatus('Conectando con OpenAI…', 'Connecting to OpenAI…');
+  voiceSetStatus('Conectando voz…', 'Connecting voice…');
   voiceAbort=new AbortController();
   const connectTimeout=setTimeout(() => voiceAbort?.abort(),25000);
   try {
