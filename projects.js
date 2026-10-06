@@ -176,3 +176,14 @@ const chatActionsStyle=document.createElement('style');chatActionsStyle.textCont
 .chat-actions-menu strong,.chat-actions-menu p{display:block;padding:8px 12px;margin:0;font-size:12px;line-height:1.4}
 .chat-more{font-size:22px!important;line-height:1}.chat-more[aria-expanded=true]{opacity:1!important;background:var(--hover)!important}
 `;document.head.append(chatActionsStyle);
+const projectLayoutFix=document.createElement('style');projectLayoutFix.textContent=`
+#project-list{max-height:45dvh;overflow-y:auto;overflow-x:hidden;min-width:0}
+#project-list .project-branch,#project-list .project-tree-children,#project-list .section-branch{min-width:0;max-width:100%;box-sizing:border-box}
+#project-list .project-tree-heading{display:flex;align-items:center;width:100%;min-width:0;gap:2px}
+#project-list .project-tree-heading .project-tree-toggle{width:auto;flex:1 1 0;min-width:0;padding:10px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#project-list .project-tree-heading .project-delete{width:32px;flex:0 0 32px;min-width:32px;padding:0;min-height:36px;text-align:center}
+#project-list .history-row{width:100%;min-width:0}
+#project-list .history-row .chat-more{width:28px;flex:0 0 28px;padding:4px;text-align:center}
+#project-list .history-row>button:first-of-type{width:auto;flex:1 1 0;min-width:0}
+#project-list .section-tree-toggle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+`;document.head.append(projectLayoutFix);
