@@ -180,6 +180,22 @@ function showAuth() {
   const email = authMode === 'recovery' ? null : field(authText('Correo electrónico', 'Email'), 'email', 'email', 'email')
   if (email) { email.maxLength = 254; email.setAttribute('autocapitalize', 'off'); email.spellcheck = false }
   const password = authMode === 'forgot' ? null : field(authMode === 'recovery' ? authText('Nueva contraseña', 'New password') : authText('Contraseña', 'Password'), 'password', 'password', authMode === 'login' ? 'current-password' : 'new-password')
+  if (password) {
+    const visibility = document.createElement('button')
+    visibility.type = 'button'
+    visibility.className = 'auth-switch'
+    visibility.setAttribute('aria-pressed', 'false')
+    password.id = 'auth-password'
+    visibility.setAttribute('aria-controls', password.id)
+    visibility.textContent = authText('Mostrar contraseña', 'Show password')
+    visibility.onclick = () => {
+      const show = password.type === 'password'
+      password.type = show ? 'text' : 'password'
+      visibility.setAttribute('aria-pressed', String(show))
+      visibility.textContent = show ? authText('Ocultar contraseña', 'Hide password') : authText('Mostrar contraseña', 'Show password')
+    }
+    password.parentElement.after(visibility)
+  }
   if (password && authMode !== 'login') { password.minLength = 8; password.maxLength = 72 }
   if (password && authMode !== 'login') {
     const hint = document.createElement('small')
@@ -187,7 +203,30 @@ function showAuth() {
     hint.id = 'auth-password-hint'
     hint.textContent = authText('Mínimo 8 caracteres.', 'At least 8 characters.')
     password.setAttribute('aria-describedby', hint.id)
-    password.after(hint)
+    const strength = document.createElement('small')
+    strength.className = 'auth-hint'
+    strength.id = 'auth-password-strength'
+    strength.setAttribute('role', 'status')
+    strength.setAttribute('aria-live', 'polite')
+    password.setAttribute('aria-describedby', hint.id + ' ' + strength.id)
+    const updateStrength = () => {
+      const value = password.value
+      if (!value) { strength.textContent = ''; return }
+      const kinds = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^a-zA-Z0-9]/].filter(pattern => pattern.test(value)).length
+      const unique = new Set(value.toLowerCase()).size
+      const common = /password|contrase[nñ]a|qwerty|123456|abcdef|letmein|admin|nuna/i.test(value) || /^(.{1,4})\1+$/i.test(value)
+      const strong = !common && unique >= 8 && ((value.length >= 14 && kinds >= 3) || value.length >= 20)
+      const medium = !common && value.length >= 10 && unique >= 6 && kinds >= 2
+      const rating = strong ? authText('Fuerte', 'Strong') : medium ? authText('Media', 'Medium') : authText('Débil', 'Weak')
+      strength.textContent = authText('Fuerza estimada: ', 'Estimated strength: ') + rating
+        + (value.length < 8 ? authText('. Usa al menos 8 caracteres.', '. Use at least 8 characters.') : !strong ? authText('. Añade más palabras o caracteres y evita secuencias comunes.', '. Add more words or characters and avoid common sequences.') : '')
+    }
+    password.addEventListener('input', updateStrength)
+    const strengthNote = document.createElement('small')
+    strengthNote.className = 'auth-hint'
+    strengthNote.textContent = authText('Orientación: también se rechazan contraseñas conocidas o filtradas.', 'Guidance: known or leaked passwords are also rejected.')
+    password.after(hint, strength, strengthNote)
+
   }
   const submit = document.createElement('button')
   submit.type = 'submit'
