@@ -101,15 +101,20 @@ function openProjectCreator(){
   const es=lang==='es',form=document.createElement('form');form.id='project-create-form';form.className='project-create-form';
   const label=document.createElement('label');label.textContent=es?'Nombre del proyecto':'Project name';
   const input=document.createElement('input');input.type='text';input.maxLength=80;input.required=true;input.autocomplete='off';input.placeholder=es?'Ej. Ideas de negocio':'e.g. Business ideas';label.append(input);
-  const descriptionLabel=document.createElement('label');descriptionLabel.textContent=es?'¿Qué vas a hacer en este proyecto?':'What will you do in this project?';
+  const taskGroup=document.createElement('fieldset');taskGroup.className='project-task-options';
+  const legend=document.createElement('legend');legend.textContent=es?'¿Con qué vas a trabajar?':'What will you work on?';taskGroup.append(legend);
+  const selectedTasks=new Set();
+  const taskOptions=[['code',es?'Código':'Code','⌘'],['images',es?'Imágenes':'Images','▧'],['video',es?'Video':'Video','▷'],['chat',es?'Chat':'Chat','☷']];
+  taskOptions.forEach(([id,name,icon])=>{const option=document.createElement('button');option.type='button';option.textContent=icon+' '+name;option.setAttribute('aria-pressed','false');option.onclick=()=>{if(selectedTasks.has(id))selectedTasks.delete(id);else selectedTasks.add(id);option.setAttribute('aria-pressed',String(selectedTasks.has(id)));validate();};taskGroup.append(option)});
+  const descriptionLabel=document.createElement('label');descriptionLabel.textContent=es?'Describe tu objetivo':'Describe your goal';
   const description=document.createElement('textarea');description.rows=3;description.maxLength=1000;description.required=true;description.placeholder=es?'Describe tu objetivo: programación, edición de fotos, edición de video…':'Describe your goal: coding, photo editing, video editing…';descriptionLabel.append(description);
   const actions=document.createElement('div');const cancel=document.createElement('button');cancel.type='button';cancel.textContent=es?'Cancelar':'Cancel';
   const create=document.createElement('button');create.type='submit';create.className='project-create-submit';create.textContent=es?'Crear':'Create';create.disabled=true;
-  const validate=()=>{create.disabled=!input.value.trim()||!description.value.trim();};input.oninput=description.oninput=validate;
+  const validate=()=>{create.disabled=!input.value.trim()||!description.value.trim()||!selectedTasks.size;};input.oninput=description.oninput=validate;
   const close=()=>{form.remove();document.getElementById('project-add').setAttribute('aria-expanded','false');document.getElementById('project-add').focus();};
   cancel.onclick=close;form.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close();}};
-  form.onsubmit=e=>{e.preventDefault();const name=input.value.trim(),purpose=description.value.trim();if(!name||!purpose)return;projects.push({id:crypto.randomUUID(),name:Array.from(name).slice(0,80).join(''),description:Array.from(purpose).slice(0,1000).join(''),provider:modelSelect.value});currentProject=projects[projects.length-1].id;expandedProjects.add(currentProject);currentSection=null;active=null;close();persistProjects();render();};
-  const modelLabel=document.createElement('label');modelLabel.textContent=es?'Modelo para los chats del proyecto':'Model for project chats';const modelSelect=document.createElement('select');const follow=document.createElement('option');follow.value='';follow.textContent=es?'Usar el modelo elegido en el chat':'Use the model selected in chat';modelSelect.append(follow);providerModels.forEach(m=>{const option=document.createElement('option');option.value=m.id;option.textContent=m.name;modelSelect.append(option)});modelLabel.append(modelSelect);actions.append(cancel,create);form.append(label,descriptionLabel,modelLabel,actions);document.getElementById('project-list').before(form);document.getElementById('project-add').setAttribute('aria-expanded','true');input.focus();
+  form.onsubmit=e=>{e.preventDefault();const name=input.value.trim(),purpose=description.value.trim();if(!name||!purpose||!selectedTasks.size)return;projects.push({id:crypto.randomUUID(),name:Array.from(name).slice(0,80).join(''),description:Array.from(purpose).slice(0,1000).join(''),provider:modelSelect.value,tasks:[...selectedTasks]});currentProject=projects[projects.length-1].id;expandedProjects.add(currentProject);currentSection=null;active=null;close();persistProjects();render();};
+  const modelLabel=document.createElement('label');modelLabel.textContent=es?'Modelo para los chats del proyecto':'Model for project chats';const modelSelect=document.createElement('select');const follow=document.createElement('option');follow.value='';follow.textContent=es?'Usar el modelo elegido en el chat':'Use the model selected in chat';modelSelect.append(follow);providerModels.forEach(m=>{const option=document.createElement('option');option.value=m.id;option.textContent=m.name;modelSelect.append(option)});modelLabel.append(modelSelect);actions.append(cancel,create);form.append(label,taskGroup,descriptionLabel,modelLabel,actions);document.getElementById('project-list').before(form);document.getElementById('project-add').setAttribute('aria-expanded','true');input.focus();
 }
 const projectCreateStyle=document.createElement('style');projectCreateStyle.textContent=`
 .project-create-form{padding:12px;margin:8px 0;background:var(--card);border:1px solid var(--border);border-radius:12px}
@@ -122,7 +127,7 @@ const projectCreateStyle=document.createElement('style');projectCreateStyle.text
 .project-create-form button:disabled{opacity:.45;cursor:default}
 `;document.head.append(projectCreateStyle);
 
-function projectContextForChat(chat){const p=projects.find(p=>p.id===(chat?.project||currentProject));return p?{name:String(p.name||'').slice(0,80),description:String(p.description||'').slice(0,1000)}:null;}
+function projectContextForChat(chat){const p=projects.find(p=>p.id===(chat?.project||currentProject));return p?{name:String(p.name||'').slice(0,80),description:((Array.isArray(p.tasks)&&p.tasks.length?'Project work types: '+p.tasks.join(', ')+'.\n':'')+String(p.description||'')).slice(0,1000)}:null;}
 
 function assignNewChatSection(chat){if(currentProject&&currentSection&&currentSection!=='@direct'){assignments['section:'+chat.id]=currentSection;persistProjects();}}
 const sectionsStyle=document.createElement('style');sectionsStyle.textContent='.project-sections{margin:6px 0 12px 12px;padding-left:10px;border-left:1px solid var(--border)}.project-sections>button{font-size:12px!important;min-height:36px}.project-description{max-height:120px;overflow:auto}';document.head.append(sectionsStyle);
@@ -142,3 +147,10 @@ async function deleteProject(project,anchor){
  ids.forEach(id=>{assignments[id]='';assignments['section:'+id]='';const chat=custom.find(c=>c.id===id);if(chat)chat.project=null;});projects=projects.filter(p=>p.id!==project.id);hiddenChats=[...new Set([...hiddenChats,'project:'+project.id])];expandedProjects.delete(project.id);if(currentProject===project.id){currentProject=null;currentSection=null;}persistProjects();save();render();
 }
 const projectDeleteStyle=document.createElement('style');projectDeleteStyle.textContent='.project-tree-heading{display:flex;align-items:center;gap:4px}.project-tree-heading .project-tree-toggle{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.project-tree-heading .project-delete{width:32px;min-height:32px;flex-shrink:0;padding:0;border:0;background:transparent;color:var(--muted)}.project-tree-heading .project-delete:hover{color:#e5484d}';document.head.append(projectDeleteStyle);
+
+const taskStyle=document.createElement('style');taskStyle.textContent=`
+.project-task-options{border:0;padding:0;margin:14px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.project-task-options legend{font-size:12px;color:var(--muted);margin-bottom:8px}
+.project-task-options button{display:block;font-size:12px;min-height:42px;border:1px solid var(--border);background:var(--side);color:var(--text);border-radius:10px;padding:8px}
+.project-task-options button[aria-pressed=true]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,var(--card));color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+`;document.head.append(taskStyle);
