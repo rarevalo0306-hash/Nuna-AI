@@ -359,3 +359,17 @@ body[data-nuna-voice="speaking"] #welcome .welcome-mark svg{animation:nuna-core-
 @media(prefers-reduced-motion:reduce){.voice-actions[data-state] .voice-wave,.voice-actions[data-state] .voice-wave::before,body[data-nuna-voice] #welcome .welcome-mark svg{animation:none}}
 
 .memory-form{padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important}.memory-form textarea{min-height:90px;max-height:240px;overflow:auto;padding:12px;border:1px solid var(--border);border-radius:12px}.memory-form input[type=checkbox]{width:20px;height:20px}.memory-form>button,.memory-notice{padding:10px 14px;border:1px solid var(--border);border-radius:12px;background:var(--card);margin:8px 8px 8px 0}.memory-form p{font-size:13px;line-height:1.6;color:var(--muted)}
+
+/* Softer orbital motion and light linked to real voice playback state. */
+#welcome .welcome-mark{transition:filter .85s ease,opacity .85s ease;isolation:isolate}
+#welcome .welcome-mark svg{animation-duration:10s;transition:filter .8s ease,stroke .8s ease}
+#welcome .welcome-mark .nuna-tech-depth{animation-duration:26s;animation-timing-function:ease-in-out}
+#welcome .welcome-mark .nuna-tech-pulse{animation-duration:12s}
+body[data-nuna-voice="listening"] #welcome .welcome-mark svg{stroke:#d5fff6;filter:drop-shadow(0 0 6px #24d9bb88)}
+body[data-nuna-voice="thinking"] #welcome .welcome-mark svg{animation:nuna-soft-light 3.6s ease-in-out infinite;stroke:#91d7ff}
+body[data-nuna-voice="speaking"] #welcome .welcome-mark svg{animation:nuna-soft-light 2.2s ease-in-out infinite;stroke:#d5fff6}
+body[data-nuna-voice="speaking"] #welcome .welcome-mark{filter:drop-shadow(0 0 22px #23d8bd55)}
+.voice-actions .voice-wave{transition:filter .8s ease,background .8s ease,opacity .8s ease}
+.voice-actions[data-state="speaking"] .voice-wave{animation:nuna-soft-light 2.2s ease-in-out infinite}
+@keyframes nuna-soft-light{0%,100%{opacity:.82;filter:drop-shadow(0 0 4px #23d8bd55)}50%{opacity:1;filter:drop-shadow(0 0 11px #7bffe9aa)}}
+@media(prefers-reduced-motion:reduce){#welcome .welcome-mark,#welcome .welcome-mark svg,.voice-actions .voice-wave{transition:none}body[data-nuna-voice] #welcome .welcome-mark svg,.voice-actions[data-state="speaking"] .voice-wave{animation:none}}
