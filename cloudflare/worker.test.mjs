@@ -37,3 +37,13 @@ assert.equal((await worker.fetch(new Request('https://worker.test/files',{header
 r=await worker.fetch(new Request('https://worker.test/files',{headers:{Origin:'https://or-nuna.com',Authorization:'Bearer valid','X-Owner':other,'X-Account-Limit':'unlimited'}}),gatewayEnv);assert.equal(r.status,200);assert.equal((await r.clone().json()).limitBytes,QUOTA);assert.equal(r.headers.get('Access-Control-Allow-Origin'),'https://or-nuna.com');assert.equal(forwarded,1);
 globalThis.fetch=async()=>new Response('bad',{status:401});assert.equal((await worker.fetch(new Request('https://worker.test/files',{headers:{Authorization:'Bearer invalid'}}),gatewayEnv)).status,401);globalThis.fetch=savedFetch;
 console.log('Verified: quota boundary and concurrent reservations, owner isolation, auth, origin, file size, rollback, recovery, private download.');
+
+const deletion=account();const created=await (await deletion.instance.fetch(request('POST','/files','delete-test'))).json();
+assert.equal((await deletion.instance.fetch(request('DELETE','/files/'+created.id,undefined,other))).status,404);
+assert.equal(deletion.objects.has(created.key),true);
+assert.equal((await deletion.instance.fetch(request('DELETE','/files/'+created.id))).status,200);
+assert.equal(deletion.objects.has(created.key),false);
+assert.equal((await deletion.instance.fetch(request('GET','/files/'+created.id))).status,404);
+assert.equal((await (await deletion.instance.fetch(request('GET'))).json()).usedBytes,42);
+assert.equal((await deletion.instance.fetch(request('DELETE','/files/'+created.id))).status,404);
+console.log('Private deletion removes bytes and rejects other accounts.');

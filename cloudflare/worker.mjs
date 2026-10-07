@@ -27,7 +27,7 @@ export default {
    if(request.method==='OPTIONS')response=new Response(null,{status:204});
    else{
     const url=new URL(request.url),match=url.pathname.match(/^\/files(?:\/([0-9a-f-]{36}))?$/i);
-    if(!match||!['GET','POST'].includes(request.method))return json({error:'not_found'},404);
+    if(!match||!['GET','POST','DELETE'].includes(request.method))return json({error:'not_found'},404);
     const token=request.headers.get('Authorization')||'';
     if(!/^Bearer [\w.\-]+$/.test(token))response=json({error:'sign_in_required'},401);
     else{
@@ -62,7 +62,7 @@ export default {
    }
   }catch(error){response=json({error:['file_too_large','empty_file'].includes(error.message)?error.message:'storage_unavailable'},['file_too_large','empty_file'].includes(error.message)?413:503)}
   const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('X-Content-Type-Options','nosniff');
-  if(origin===ORIGIN){headers.set('Access-Control-Allow-Origin',ORIGIN);headers.set('Vary','Origin');headers.set('Access-Control-Allow-Methods','GET, POST, OPTIONS');headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, X-File-Name, X-File-Size, X-Upload-Action, X-Upload-Id, X-Part-Number');headers.set('Access-Control-Max-Age','600')}
+  if(origin===ORIGIN){headers.set('Access-Control-Allow-Origin',ORIGIN);headers.set('Vary','Origin');headers.set('Access-Control-Allow-Methods','GET, POST, DELETE, OPTIONS');headers.set('Access-Control-Allow-Headers','Authorization, Content-Type, X-File-Name, X-File-Size, X-Upload-Action, X-Upload-Id, X-Part-Number');headers.set('Access-Control-Max-Age','600')}
   return new Response(response.body,{status:response.status,headers});
  }
 };
@@ -85,6 +85,12 @@ export class AccountFiles {
    if(!file||!file.key.startsWith(owner+'/'))return json({error:'not_found'},404);
    const object=await this.env.FILES.get(file.key);if(!object)return json({error:'not_found'},404);
    return new Response(object.body,{headers:{'Content-Type':'application/octet-stream','Content-Disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(file.name),'Cache-Control':'no-store','Content-Length':String(object.size)}});
+  }
+  if(request.method==='DELETE'&&uuid.test(id||'')){
+   const file=this.sql.exec("SELECT * FROM files WHERE id=? AND state='ready'",id).toArray()[0];
+   if(!file||!file.key.startsWith(owner+'/'))return json({error:'not_found'},404);
+   await this.env.FILES.delete(file.key);this.sql.exec('DELETE FROM files WHERE id=?',id);
+   return json({deleted:true});
   }
   if(request.method!=='POST'||id)return json({error:'not_found'},404);
   const action=request.headers.get('X-Upload-Action')||'';
