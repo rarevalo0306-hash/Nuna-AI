@@ -7,6 +7,8 @@
   const t=text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
   if(!chat||!t||t.length>100||/[?¿]/.test(t)||/\b(?:no|gracias|hola|explica|que|como|por|cuanto|donde|cuando|quien|pdf|documento|historia|codigo|thanks|why|what|how)\b/.test(t))return false;
   const messages=chat.messages||[],last=messages.at(-1),previous=messages.at(-2);if(last?.[0]!=='assistant')return false;
+  const asciiDrawing=/```|[|_\\]{3}|(?:dibujo|dibujar|ballena|oso).*(?:ASCII|caracteres|simbolos)|ASCII/i.test(last[1]);
+  if(asciiDrawing&&messages.slice(-8).some(m=>m[0]==='user'&&imageRequest(m[1])))return true;
   return Boolean(chat.attachments?.[messages.length-1]?.some(f=>/^image\//.test(f.type)))||Boolean(previous?.[0]==='user'&&imageRequest(previous[1])&&/(?:que|cual|describe|what|which).*(?:imagen|foto|dibuj|image|photo)|(?:imagen|foto|image|photo).*(?:quieres|deseas|would|want)/i.test(last[1]));
  }
  function chooseMode(edit){mode=edit?'edit':'create';attachmentMenu.hidden=true;attachmentButton.setAttribute('aria-expanded','false');openAIStatus.textContent=lang==='es'?(edit?'Adjunta una foto JPG, PNG o WebP y escribe qué quieres cambiar.':'Describe la imagen que quieres crear.'):(edit?'Attach a JPG, PNG or WebP photo and describe the changes.':'Describe the image you want to create.');if(edit)chooseAttachment('photo');document.getElementById('prompt').focus()}
