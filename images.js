@@ -3,14 +3,6 @@
  let mode=null;
  const previousSend=send;
  function imageRequest(text){const t=text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();return !/\bno\s+(?:crees|generes|hagas|quiero)\b/.test(t)&&(/(?:crea|genera|dibuja|haz|create|generate|draw|make).{0,35}(?:imagen|foto|dibujo|image|picture|photo)/.test(t)||/\b(?:dibuja(?:me)?|dibuje(?:s|me)?|draw)\b/.test(t))}
- function imageFollowup(text,chat){
-  const t=text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-  if(!chat||!t||t.length>100||/[?¿]/.test(t)||/\b(?:no|gracias|hola|explica|que|como|por|cuanto|donde|cuando|quien|pdf|documento|historia|codigo|thanks|why|what|how)\b/.test(t))return false;
-  const messages=chat.messages||[],last=messages.at(-1),previous=messages.at(-2);if(last?.[0]!=='assistant')return false;
-  const asciiDrawing=/```|[|_\\]{3}|(?:dibujo|dibujar|ballena|oso).*(?:ASCII|caracteres|simbolos)|ASCII/i.test(last[1]);
-  if(asciiDrawing&&messages.slice(-8).some(m=>m[0]==='user'&&imageRequest(m[1])))return true;
-  return Boolean(chat.attachments?.[messages.length-1]?.some(f=>/^image\//.test(f.type)))||Boolean(previous?.[0]==='user'&&imageRequest(previous[1])&&/(?:que|cual|describe|what|which).*(?:imagen|foto|dibuj|image|photo)|(?:imagen|foto|image|photo).*(?:quieres|deseas|would|want)/i.test(last[1]));
- }
  function chooseMode(edit){mode=edit?'edit':'create';attachmentMenu.hidden=true;attachmentButton.setAttribute('aria-expanded','false');openAIStatus.textContent=lang==='es'?(edit?'Adjunta una foto JPG, PNG o WebP y escribe qué quieres cambiar.':'Describe la imagen que quieres crear.'):(edit?'Attach a JPG, PNG or WebP photo and describe the changes.':'Describe the image you want to create.');if(edit)chooseAttachment('photo');document.getElementById('prompt').focus()}
  const previousAttach=attachmentButton.onclick;attachmentButton.onclick=()=>{previousAttach();for(const [edit,label]of [[false,lang==='es'?'Crear imagen':'Create image'],[true,lang==='es'?'Editar foto':'Edit photo']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>chooseMode(edit);attachmentMenu.append(b)}};
  const previousNew=newChat;newChat=function(){mode=null;previousNew()};['new-chat','new-top'].forEach(id=>document.getElementById(id).onclick=newChat);
@@ -18,7 +10,14 @@
   const text=String(value||'').trim();if(!text||openAIBusy)return;
   const photos=pendingAttachments.filter(f=>['image/jpeg','image/png','image/webp'].includes(f.type));
   const editing=mode==='edit'||(photos.length&&/(edita|cambia|transforma|quita|elimina|agrega|retoca|edit|change|remove|add|replace)/i.test(text));
-  if(!mode&&!editing&&!imageRequest(text)&&!imageFollowup(text,custom.find(c=>c.id===active))){return previousSend(value)}
+  if(!mode&&!editing&&!imageRequest(text)){
+   if(/^[\p{L}\p{N} -]{1,50}$/u.test(text)&&text.trim().split(/\s+/).length<=3&&!/^(hola|gracias|si|no|ok|vale|hello|thanks)\b/i.test(text)){
+    if(!authUser?.id||!await waitForAccount())return previousSend(value);
+    let chat=custom.find(c=>c.id===active);if(!chat){chat={id:crypto.randomUUID(),title:text,messages:[],project:currentProject};custom.unshift(chat);active=chat.id;assignNewChatSection(chat)}
+    chat.messages.push(['user',text],['assistant',lang==='es'?'¿Qué quieres hacer con «'+text+'»? ¿Buscas información, una imagen o algo más?':'What would you like to do with “'+text+'”? Information, an image, or something else?']);document.getElementById('prompt').value='';save();render();scrollBottom();return;
+   }
+   return previousSend(value)
+  }
   const es=lang==='es',owner=authUser?.id;if(!owner){openAIStatus.textContent=es?'Inicia sesión para crear o editar imágenes.':'Sign in to create or edit images.';openAuth('login');return}
   if(!await waitForAccount()||authUser?.id!==owner||openAIBusy)return;
   if(editing&&(photos.length!==1||pendingAttachments.length!==1||photos[0].provider!=='r2')){openAIStatus.textContent=es?'Adjunta una sola foto JPG, PNG o WebP para editar.':'Attach one JPG, PNG or WebP photo to edit.';return}
