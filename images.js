@@ -8,6 +8,11 @@
  const previousNew=newChat;newChat=function(){mode=null;previousNew()};['new-chat','new-top'].forEach(id=>document.getElementById(id).onclick=newChat);
  send=async function(value){
   const text=String(value||'').trim();if(!text||openAIBusy)return;
+  const localChat=custom.find(c=>c.id===active),localProject=projects.find(p=>p.id===localChat?.project);
+  if((localChat?.provider||localProject?.provider||preferredModel)==='local'){
+   if(mode||imageRequest(text)||pendingAttachments.length){openAIStatus.textContent=lang==='es'?'Este chat usa NUNA Local y no activa servicios de imágenes de pago. Genera tu imagen en la aplicación NUNA Local.':'This chat uses NUNA Local and does not enable paid image services. Generate your image in the NUNA Local app.';return;}
+   return previousSend(value);
+  }
   const photos=pendingAttachments.filter(f=>['image/jpeg','image/png','image/webp'].includes(f.type));
   const editing=mode==='edit'||(photos.length&&/(edita|cambia|transforma|quita|elimina|agrega|retoca|edit|change|remove|add|replace)/i.test(text));
   if(!mode&&!editing&&!imageRequest(text)){

@@ -14,6 +14,9 @@
     },
     "api/chat.js": {
       "maxDuration": 90
+    },
+    "api/local-chat.js": {
+      "maxDuration": 60
     }
   }
 }
