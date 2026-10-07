@@ -182,7 +182,8 @@ module.exports = async function handler(req, res) {
         : isAnthropic
         ? { model, system: instructions, messages, max_tokens: 16000, ...(claudeAdaptive ? { output_config: { effort: claudeEffort }, fallbacks: 'default' } : {}) }
         // Grok 4.x models may reason before answering and that counts toward max_tokens, so they get room for both.
-        : isDeepSeek ? { model, messages: [{ role: 'system', content: instructions }, ...messages], max_tokens: provider === 'grok' ? 8192 : 1200, stream: false }
+        // The free plan's model answers without a thinking phase: it is billed as output and roughly multiplies the cost.
+        : isDeepSeek ? { model, messages: [{ role: 'system', content: instructions }, ...messages], max_tokens: provider === 'grok' ? 8192 : 1200, stream: false, ...(freeRoute ? { enable_thinking: false } : {}) }
         : { model, instructions, input: messages, max_output_tokens: 1200, store: false }),
       signal: AbortSignal.timeout(local.attempted ? 25000 : 45000)
     });

@@ -22,7 +22,7 @@ const post=(token,body)=>({method:'POST',headers:{authorization:'Bearer '+token}
 test('free plan always answers with the economical model and logs tokens and cost',async()=>{const m=mock('gratis');const res=await run(chat,post(jwt('person@example.com'),{provider:'anthropic',messages:[{role:'user',content:'Hola'}]}),m);
  assert.equal(res.code,200);assert.equal(res.body.text,'hola gratis');assert.equal(res.body.provider,'qwen');assert.equal(res.body.routed,'free');
  assert.equal(res.body.usage.plan,'gratis');assert.equal(res.body.usage.limit,30);assert.equal(res.body.usage.paidModels,false);
- assert.equal(m.calls.some(c=>c.url.includes('anthropic')),false);assert.equal(m.calls.find(c=>c.url.includes('dashscope')).body.model,'qwen3.7-flash');
+ assert.equal(m.calls.some(c=>c.url.includes('anthropic')),false);assert.equal(m.calls.find(c=>c.url.includes('dashscope')).body.model,'qwen3.7-flash');assert.equal(m.calls.find(c=>c.url.includes('dashscope')).body.enable_thinking,false);
  assert.equal(m.calls.find(c=>c.url.includes('consume_ai_message')).body.p_limit,30);
  const log=m.calls.find(c=>c.url.includes('log_ai_event')).body;assert.deepEqual([log.p_kind,log.p_provider,log.p_model,log.p_input,log.p_output],['chat','qwen','qwen3.7-flash',1000,500]);assert.equal(log.p_cost,0.000095)});
 
