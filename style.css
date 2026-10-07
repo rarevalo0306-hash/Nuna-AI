@@ -232,3 +232,16 @@ form[data-extension] input{flex-basis:240px!important}form[data-extension] small
 .composer-controls .composer-model-picker select{max-width:220px;font-size:14px;min-height:40px;padding:8px 24px 8px 10px}
 .composer-controls .composer-video-duration select{max-width:85px}
 @media(max-width:760px){.composer-controls .composer-model-picker{flex:1;min-width:80px}.composer-controls .composer-model-picker>span{display:none}.composer-controls .composer-model-picker select{width:100%;max-width:100%;font-size:16px}.composer-controls #voice-open{margin:0}.composer-controls .composer-video-duration{order:5;flex-basis:100%;justify-content:flex-end}.composer-controls .composer-video-duration select{width:80px}}
+
+/* A clearer desktop layout; touch layouts retain their existing sizing. */
+#sidebar .brand>span{display:none}
+#sidebar .brand>svg{width:52px;height:28px}
+@media(min-width:761px){
+ #sidebar{width:312px}
+ #sidebar nav button{font-size:14px}
+ .composer-area{max-width:956px}
+ #messages{max-width:900px}
+ #composer{padding:18px 20px}
+ #prompt{font-size:17px;min-height:52px}
+ .composer-controls #attach-open,.composer-controls #voice-open,.composer-controls #send{width:40px;height:40px;flex-shrink:0}
+}
