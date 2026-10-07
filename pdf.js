@@ -36,7 +36,8 @@
        catch(error){note.textContent=error.name==='AbortError'?(es?'Guardado cancelado.':'Save canceled.'):(es?'No se pudo abrir el menú. Pulsa guardar para reintentar.':'Could not open menu. Tap save to retry.')}
        finally{nativeSave.disabled=false}
       };
-      actions.append(nativeSave,note);button.textContent=es?'PDF listo':'PDF ready';
+      const preview=document.createElement('a');preview.textContent=es?'Ver PDF':'View PDF';preview.target='_blank';preview.rel='noopener noreferrer';const previewUrl=URL.createObjectURL(file);preview.href=previewUrl;actions.append(nativeSave,preview,note);button.textContent=es?'PDF listo':'PDF ready';
+      const cleanup=new MutationObserver(()=>{if(!preview.isConnected){URL.revokeObjectURL(previewUrl);cleanup.disconnect()}});cleanup.observe(document.getElementById('messages'),{childList:true,subtree:true});
      }else{downloadFile(file);button.textContent=es?'Descarga solicitada':'Download requested'}
      if(owner){try{if(authUser?.id!==owner)return;await window.NunaArtifacts.store(file);if(authUser?.id===owner)button.textContent=es?'PDF guardado en Documentos':'PDF saved in Documents'}catch{if(authUser?.id===owner)button.textContent=es?'PDF listo; no se pudo guardar en la cuenta':'PDF ready; could not save to account'}}
     }catch{button.textContent=es?'No se pudo crear el PDF':'Could not create PDF';button.disabled=false}
