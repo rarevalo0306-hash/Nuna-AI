@@ -269,3 +269,10 @@ form[data-extension] input{flex-basis:240px!important}form[data-extension] small
  #sidebar .sidebar-ad p{display:none}
  #sidebar .sidebar-ad-available{margin-top:6px}
 }
+
+/* Desktop proportions measured from the user's reference. */
+@media(min-width:761px){
+ #sidebar{width:340px}
+ .composer-area{max-width:824px}
+ #messages{width:100%;max-width:824px}
+}
