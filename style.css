@@ -296,3 +296,17 @@ form[data-extension] input{flex-basis:240px!important}form[data-extension] small
 @media(max-width:760px){#welcome .welcome-mark{width:94px;height:94px;margin-bottom:16px}#welcome .welcome-mark svg{width:58px}}
 @media(prefers-reduced-motion:reduce){#welcome .welcome-mark::before,#welcome .welcome-mark::after,#welcome .welcome-mark svg{animation:none}}
 @media(max-width:760px) and (max-height:500px){#welcome .welcome-mark{display:none}}
+
+/* Segmented instrument halo, with a quiet scan and orbital nodes. */
+#welcome .welcome-mark{isolation:isolate;width:156px;height:156px;background:radial-gradient(circle,#23d8bd25 0%,#09242d80 45%,transparent 72%)}
+#welcome .welcome-mark::before{inset:8px;border:0;background:repeating-conic-gradient(from 12deg,#71ffebaa 0deg 16deg,transparent 16deg 23deg,#23d8bd44 23deg 45deg,transparent 45deg 60deg);mask:radial-gradient(circle,transparent 67%,#000 68% 70%,transparent 71%);box-shadow:none;animation-duration:28s}
+#welcome .welcome-mark::after{inset:20px;border:1px solid #23d8bd30;border-left-color:#90fff0;border-right-color:#23d8bd;box-shadow:0 0 14px #23d8bd18;animation-duration:16s}
+.nuna-tech-grid{position:absolute;inset:31px;border-radius:50%;background:linear-gradient(#23d8bd12 1px,transparent 1px),linear-gradient(90deg,#23d8bd12 1px,transparent 1px);background-size:12px 12px;mask:radial-gradient(circle,#000 20%,transparent 72%);z-index:-1}
+.nuna-tech-orbit{position:absolute;inset:2px;border-radius:50%;border:1px dashed #23d8bd28;animation:nuna-halo-orbit 38s linear infinite}
+.nuna-tech-orbit::before,.nuna-tech-orbit::after{content:'';position:absolute;width:4px;height:4px;border-radius:50%;background:#adfff3;box-shadow:0 0 9px #23d8bd;left:50%;top:-2px}
+.nuna-tech-orbit::after{top:auto;bottom:-2px;width:3px;height:3px;background:#23d8bd}
+.nuna-tech-scan{position:absolute;inset:27px;border-radius:50%;overflow:hidden;z-index:-1}
+.nuna-tech-scan::before{content:'';position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#8dfff088,transparent);box-shadow:0 0 10px #23d8bd44;animation:nuna-tech-sweep 6s ease-in-out infinite}
+@keyframes nuna-tech-sweep{0%,100%{top:15%;opacity:0}25%,75%{opacity:.6}50%{top:85%;opacity:.3}}
+@media(max-width:760px){#welcome .welcome-mark{width:108px;height:108px}#welcome .welcome-mark svg{width:54px}.nuna-tech-grid{inset:22px}.nuna-tech-scan{inset:20px}}
+@media(prefers-reduced-motion:reduce){.nuna-tech-orbit,.nuna-tech-scan::before{animation:none}.nuna-tech-scan{display:none}}
