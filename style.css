@@ -245,3 +245,12 @@ form[data-extension] input{flex-basis:240px!important}form[data-extension] small
  #prompt{font-size:17px;min-height:52px}
  .composer-controls #attach-open,.composer-controls #voice-open,.composer-controls #send{width:40px;height:40px;flex-shrink:0}
 }
+
+.message.user.user-message-compact{background:transparent;border:0;padding:0;max-width:85%;margin-left:auto;display:flex;flex-direction:column;align-items:flex-end}
+.user-message-compact>div:first-child{background:var(--bubble);border-radius:22px;padding:12px 18px;order:2}
+.user-message-compact>.chat-files{order:1;margin:0 0 8px}.user-message-compact>.chat-files .file-chip{display:none}
+.user-message-compact>img{order:1;width:104px!important;height:104px!important;object-fit:cover;margin:0 0 8px!important;border-radius:14px!important}
+.user-message-compact>button{display:none!important}
+.user-message-actions{order:3;display:flex;gap:4px;margin-top:6px}
+.user-message-actions button{display:grid;place-items:center;width:36px;height:36px;padding:8px;border:0;background:transparent;color:var(--muted);border-radius:8px}
+.user-message-actions button:hover{background:var(--hover)}.user-message-actions svg{width:20px;height:20px;stroke:currentColor;stroke-width:1.6;fill:none}
