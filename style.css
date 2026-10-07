@@ -284,3 +284,15 @@ form[data-extension] input{flex-basis:240px!important}form[data-extension] small
 
 /* Branding lives in the sidebar; keep the header free of a duplicate label. */
 #home{display:none!important}
+
+/* NUNA halo: restrained motion for the everyday welcome screen. */
+#welcome .welcome-mark{position:relative;display:grid;place-items:center;width:138px;height:138px;margin:0 auto 24px;border-radius:50%;background:radial-gradient(circle,#23d8bd20 0%,#23d8bd08 48%,transparent 70%)}
+#welcome .welcome-mark::before,#welcome .welcome-mark::after{content:'';position:absolute;inset:7px;border-radius:50%;pointer-events:none}
+#welcome .welcome-mark::before{border:1px solid #23d8bd55;border-top:2px solid #76ffe7;border-right-color:transparent;box-shadow:0 0 18px #23d8bd25,inset 0 0 18px #23d8bd18;animation:nuna-halo-orbit 12s linear infinite}
+#welcome .welcome-mark::after{inset:0;border:1px solid #23d8bd20;border-bottom-color:#23d8bd88;animation:nuna-halo-orbit 18s linear reverse infinite}
+#welcome .welcome-mark svg{width:82px;z-index:1;filter:drop-shadow(0 0 9px #23d8bd88);animation:nuna-halo-breathe 5s ease-in-out infinite}
+@keyframes nuna-halo-orbit{to{transform:rotate(360deg)}}
+@keyframes nuna-halo-breathe{50%{opacity:.75;transform:scale(.96)}}
+@media(max-width:760px){#welcome .welcome-mark{width:94px;height:94px;margin-bottom:16px}#welcome .welcome-mark svg{width:58px}}
+@media(prefers-reduced-motion:reduce){#welcome .welcome-mark::before,#welcome .welcome-mark::after,#welcome .welcome-mark svg{animation:none}}
+@media(max-width:760px) and (max-height:500px){#welcome .welcome-mark{display:none}}
