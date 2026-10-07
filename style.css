@@ -495,3 +495,21 @@ body:not(.dark) #composer{background:linear-gradient(135deg,#ffffffef,#f2f8ffed)
 body:not(.dark) #sidebar{background:linear-gradient(165deg,#edf6fc,#edf0f9);border-right-color:#bdcfe3}
 body:not(.dark) .new-chat{border-color:#bfd4e8;box-shadow:0 4px 12px #4c79ad0c;background:linear-gradient(120deg,#fff,#eaf4ff)}
 @media(max-width:760px){body:not(.dark) #welcome .welcome-mark{width:156px;height:156px;margin-bottom:20px}body:not(.dark) #welcome .welcome-mark .nuna-tech-grid{inset:26px}body:not(.dark) #welcome .welcome-mark svg{width:63px}body:not(.dark) #welcome .welcome-mark::after{inset:19px}body:not(.dark) .suggestion,body:not(.dark) #composer{backdrop-filter:none}}
+
+/* Holographic daylight stage with a distinct central surface. */
+body:not(.dark) main{background:radial-gradient(ellipse at 50% 15%,#e0f3fc 0%,#f3f6fc 48%,#f8faff 100%)}
+body:not(.dark) #welcome{position:relative;isolation:isolate;margin-top:28px;margin-bottom:24px;padding:32px 28px;max-width:790px;border:1px solid #fff;border-radius:32px;background:linear-gradient(145deg,#ffffffba,#f2f8ff8c);box-shadow:0 20px 60px #294e8310,inset 0 1px 0 #fff}
+body:not(.dark) #welcome::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;background-image:linear-gradient(#2694c809 1px,transparent 1px),linear-gradient(90deg,#2694c809 1px,transparent 1px);background-size:32px 32px;mask-image:linear-gradient(#0009,transparent 65%)}
+body:not(.dark) #welcome::after{content:'';position:absolute;pointer-events:none;top:-1px;left:18%;right:18%;height:2px;background:linear-gradient(90deg,transparent,#34bdd9,#7296fa,transparent);box-shadow:0 0 12px #50c5e355}
+body:not(.dark) #welcome .welcome-mark{width:220px;height:220px;margin-bottom:18px}
+body:not(.dark) #welcome .welcome-mark .nuna-tech-grid{inset:34px;background:radial-gradient(ellipse at 28% 16%,#e0ffff80,transparent 40%),radial-gradient(ellipse at 78% 80%,#426bf488,transparent 60%),linear-gradient(145deg,#154966,#08192f);box-shadow:inset 0 2px 10px #deffff55,inset -7px -12px 22px #060c2788,0 0 28px #31bce344}
+body:not(.dark) #welcome h1{font-weight:650;letter-spacing:-1.4px;font-size:clamp(28px,2.6vw,40px);margin:14px 0}
+body:not(.dark) #welcome>p{margin-bottom:24px}
+body:not(.dark) .suggestion{background:#ffffffed;border-color:#c5d9ed;border-radius:16px;box-shadow:0 5px 14px #234d810c;min-height:96px;padding-top:19px;padding-bottom:19px}
+body:not(.dark) .suggestion strong{font-weight:650;color:#163651}
+body:not(.dark) .suggestion small{color:#476580}
+body:not(.dark) .suggestion .symbol{background:linear-gradient(140deg,#e3f8ff,#dfeaff);color:#046a9b;border-color:#9dc8e0;box-shadow:0 4px 10px #198cc019}
+body:not(.dark) #sidebar{background:linear-gradient(180deg,#e8f0fa,#edf2fa);box-shadow:4px 0 22px #2c4e7205}
+body:not(.dark) #composer{background:#ffffffed;border-color:#9ebfdc;box-shadow:0 12px 36px #245c9420,inset 0 1px #fff}
+@media(max-width:900px){body:not(.dark) #welcome{margin:18px 18px 24px;padding:24px 20px;border-radius:26px}}
+@media(max-width:760px){body:not(.dark) #welcome{margin:12px 12px 20px;padding:20px 14px;border-radius:22px}body:not(.dark) #welcome .welcome-mark{width:148px;height:148px;margin-bottom:16px}body:not(.dark) #welcome .welcome-mark .nuna-tech-grid{inset:23px}body:not(.dark) #welcome h1{font-size:28px;letter-spacing:-.8px}body:not(.dark) #welcome>p{font-size:13px}body:not(.dark) .suggestion{padding:14px 10px 14px 46px;min-height:100px}body:not(.dark) .suggestion .symbol{left:10px;top:16px;width:26px;height:26px}body:not(.dark) .suggestion strong{font-size:12px}}
