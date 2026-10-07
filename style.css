@@ -477,3 +477,21 @@ body:not(.dark) #welcome .welcome-mark::before{opacity:.8;background:repeating-c
 body:not(.dark) #welcome .welcome-mark::after{border-color:#418acb99;border-right-color:#16baca}
 body:not(.dark) #welcome .welcome-mark .nuna-tech-depth{border-color:#14a6bbaa;border-left-color:transparent;border-bottom-color:#527ee9bb;box-shadow:0 0 8px #2bbdce22}
 body:not(.dark) #welcome .welcome-mark .nuna-tech-orbit::before{background:#087fa4;box-shadow:0 0 8px #00d9ff88}
+
+/* Futuristic daylight experiment: holographic hero and glass panels. */
+body:not(.dark) main{background:radial-gradient(ellipse 560px 440px at 50% 24%,#76d9ff30,transparent 75%),radial-gradient(ellipse 650px 550px at 85% 70%,#a6b6ff1a,transparent 80%),linear-gradient(135deg,#f6fcff,#f7f8ff)}
+body:not(.dark) #welcome .welcome-mark{width:240px;height:240px;background:radial-gradient(circle,#6ce6ff40 10%,#7caeff16 52%,transparent 72%);filter:drop-shadow(0 12px 28px #3286c044);margin-bottom:26px}
+body:not(.dark) #welcome .welcome-mark .nuna-tech-grid{inset:40px;border:1px solid #76e6facc;background:radial-gradient(ellipse at 25% 16%,#cfffff88,transparent 40%),radial-gradient(ellipse at 80% 80%,#607dff66,transparent 58%),linear-gradient(135deg,#175b76,#10214d);box-shadow:inset 0 3px 12px #c9ffff55,inset -8px -10px 26px #050f2d88,0 0 0 6px #7de5ff0d,0 0 34px #31c8ef44}
+body:not(.dark) #welcome .welcome-mark svg{width:94px;stroke:#d8ffff;filter:drop-shadow(0 0 8px #34e7ffbb)}
+body:not(.dark) #welcome .welcome-mark::before{inset:7px;opacity:.85;background:repeating-conic-gradient(from 12deg,#27afd3 0deg 8deg,transparent 8deg 18deg);filter:drop-shadow(0 0 4px #65d6f188)}
+body:not(.dark) #welcome .welcome-mark::after{inset:28px;border-right-color:#228df0;border-left-color:#16bdbb}
+body:not(.dark) #welcome .welcome-mark .nuna-tech-depth{inset:0;border-top-color:#23adc9;border-bottom-color:#6385f2;box-shadow:0 2px 10px #49c6ee44}
+body:not(.dark) .suggestion{background:linear-gradient(125deg,#ffffffee,#eaf5ff99);border:1px solid #b9d5ed;box-shadow:inset 0 1px #fff,0 6px 22px #275c9810;backdrop-filter:blur(12px)}
+body:not(.dark) .suggestion::before{content:'';position:absolute;top:15px;bottom:15px;left:0;width:2px;border-radius:3px;background:linear-gradient(transparent,#34b6db,#6d91f1,transparent)}
+body:not(.dark) .suggestion::after{width:17px;height:17px;border-color:#309bd099}
+body:not(.dark) .suggestion .symbol{background:linear-gradient(135deg,#d7f7ff,#e0e7ff);border:1px solid #add9ed;color:#087baf;box-shadow:0 2px 9px #3dafe71a}
+body:not(.dark) .suggestion:hover{border-color:#5ab7dc;box-shadow:0 8px 25px #299ad025,inset 0 1px #fff}
+body:not(.dark) #composer{background:linear-gradient(135deg,#ffffffef,#f2f8ffed);border-color:#a6c9e6;box-shadow:0 -1px 0 #8ce5ee55,0 10px 35px #316bb81c;backdrop-filter:blur(16px)}
+body:not(.dark) #sidebar{background:linear-gradient(165deg,#edf6fc,#edf0f9);border-right-color:#bdcfe3}
+body:not(.dark) .new-chat{border-color:#bfd4e8;box-shadow:0 4px 12px #4c79ad0c;background:linear-gradient(120deg,#fff,#eaf4ff)}
+@media(max-width:760px){body:not(.dark) #welcome .welcome-mark{width:156px;height:156px;margin-bottom:20px}body:not(.dark) #welcome .welcome-mark .nuna-tech-grid{inset:26px}body:not(.dark) #welcome .welcome-mark svg{width:63px}body:not(.dark) #welcome .welcome-mark::after{inset:19px}body:not(.dark) .suggestion,body:not(.dark) #composer{backdrop-filter:none}}
