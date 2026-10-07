@@ -36,7 +36,15 @@
        catch(error){note.textContent=error.name==='AbortError'?(es?'Guardado cancelado.':'Save canceled.'):(es?'No se pudo abrir el menú. Pulsa guardar para reintentar.':'Could not open menu. Tap save to retry.')}
        finally{nativeSave.disabled=false}
       };
-      const preview=document.createElement('a');preview.textContent=es?'Ver PDF':'View PDF';preview.target='_blank';preview.rel='noopener noreferrer';const previewUrl=URL.createObjectURL(file);preview.href=previewUrl;actions.append(nativeSave,preview,note);button.textContent=es?'PDF listo':'PDF ready';
+      const preview=document.createElement('a');preview.textContent=es?'Ver PDF':'View PDF';preview.target='_blank';preview.rel='noopener noreferrer';const previewUrl=URL.createObjectURL(file);preview.href=previewUrl;
+      const viewer=document.createElement('section');viewer.hidden=true;viewer.style.cssText='width:100%;margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden';
+      const toolbar=document.createElement('div');toolbar.style.cssText='display:flex;gap:12px;align-items:center;padding:12px;flex-wrap:wrap';
+      const close=document.createElement('button');close.type='button';close.textContent=es?'Cerrar vista previa':'Close preview';close.onclick=()=>{viewer.hidden=true;preview.textContent=es?'Ver PDF':'View PDF'};
+      const separate=document.createElement('a');separate.href=previewUrl;separate.target='_blank';separate.rel='noopener noreferrer';separate.textContent=es?'Abrir en otra pestaña':'Open in another tab';
+      toolbar.append(close,separate);const frame=document.createElement('iframe');frame.title=es?'Vista previa del PDF':'PDF preview';frame.style.cssText='display:block;width:100%;height:60vh;min-height:300px;max-height:650px;border:0;background:white';
+      viewer.append(toolbar,frame);article.append(viewer);
+      preview.onclick=event=>{event.preventDefault();viewer.hidden=!viewer.hidden;if(!viewer.hidden){frame.src=previewUrl;preview.textContent=es?'Ocultar PDF':'Hide PDF'}else preview.textContent=es?'Ver PDF':'View PDF'};
+      actions.append(nativeSave,preview,note);button.textContent=es?'PDF listo':'PDF ready';
       const cleanup=new MutationObserver(()=>{if(!preview.isConnected){URL.revokeObjectURL(previewUrl);cleanup.disconnect()}});cleanup.observe(document.getElementById('messages'),{childList:true,subtree:true});
      }else{downloadFile(file);button.textContent=es?'Descarga solicitada':'Download requested'}
      if(owner){try{if(authUser?.id!==owner)return;await window.NunaArtifacts.store(file);if(authUser?.id===owner)button.textContent=es?'PDF guardado en Documentos':'PDF saved in Documents'}catch{if(authUser?.id===owner)button.textContent=es?'PDF listo; no se pudo guardar en la cuenta':'PDF ready; could not save to account'}}
