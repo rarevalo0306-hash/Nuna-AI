@@ -513,3 +513,11 @@ body:not(.dark) #sidebar{background:linear-gradient(180deg,#e8f0fa,#edf2fa);box-
 body:not(.dark) #composer{background:#ffffffed;border-color:#9ebfdc;box-shadow:0 12px 36px #245c9420,inset 0 1px #fff}
 @media(max-width:900px){body:not(.dark) #welcome{margin:18px 18px 24px;padding:24px 20px;border-radius:26px}}
 @media(max-width:760px){body:not(.dark) #welcome{margin:12px 12px 20px;padding:20px 14px;border-radius:22px}body:not(.dark) #welcome .welcome-mark{width:148px;height:148px;margin-bottom:16px}body:not(.dark) #welcome .welcome-mark .nuna-tech-grid{inset:23px}body:not(.dark) #welcome h1{font-size:28px;letter-spacing:-.8px}body:not(.dark) #welcome>p{font-size:13px}body:not(.dark) .suggestion{padding:14px 10px 14px 46px;min-height:100px}body:not(.dark) .suggestion .symbol{left:10px;top:16px;width:26px;height:26px}body:not(.dark) .suggestion strong{font-size:12px}}
+
+/* Readable supporting type shared by light and dark themes. */
+#sidebar nav button{font-size:15px;line-height:1.45}
+#sidebar .new-chat{font-size:15px}
+#sidebar .history-label,body:not(.dark) #sidebar .history-label{font-size:12px;letter-spacing:.7px}
+#suggestions .suggestion strong,body:not(.dark) #suggestions .suggestion strong{font-size:16px;line-height:1.45}
+#suggestions .suggestion small,body:not(.dark) #suggestions .suggestion small{font-size:14px;line-height:1.6}
+@media(max-width:760px){#suggestions .suggestion strong,body:not(.dark) #suggestions .suggestion strong{font-size:14px}#suggestions .suggestion small,body:not(.dark) #suggestions .suggestion small{font-size:13px}#suggestions .suggestion{min-height:110px}}
