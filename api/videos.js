@@ -1,6 +1,7 @@
 const crypto=require('node:crypto');
 const direct=require('./_direct-video');
-const {verifiedSession,isAdminSession,dailyLimit,supabaseRpc}=require('./_supabase');
+const {verifiedSession,isAdminSession,supabaseRpc}=require('./_supabase');
+const {mediaLimit}=require('./_plans');
 const base='https://queue.fal.run/fal-ai/wan/v2.2-a14b';
 const queueUrl=(s,id,suffix='')=>{try{const u=new URL(s);return u.origin==='https://queue.fal.run'&&(u.pathname.startsWith('/fal-ai/wan/')||u.pathname.startsWith('/fal-ai/ltx-2.3/'))&&u.pathname.endsWith('/requests/'+id+suffix)&&!u.search?u.href:null}catch{return null}};
 const seal=(obj,key)=>{const iv=crypto.randomBytes(12),c=crypto.createCipheriv('aes-256-gcm',key,iv),b=Buffer.concat([c.update(JSON.stringify(obj)),c.final()]);return Buffer.concat([iv,c.getAuthTag(),b]).toString('base64url')};
@@ -24,7 +25,7 @@ module.exports=async(req,res)=>{
    const max=extending?30000000:10485760;if(Number(source.headers?.get('content-length'))>max)return fail(413,'source_too_large');
    if(source.body){const chunks=[];let size=0;for await(const chunk of source.body){size+=chunk.length;if(size>max)return fail(413,'source_too_large');chunks.push(Buffer.from(chunk))}bytes=Buffer.concat(chunks)}else bytes=Buffer.from(await source.arrayBuffer());if(!bytes.length||bytes.length>max)return fail(413,'source_too_large');
    mime=extending?(bytes.toString('ascii',4,8)==='ftyp'?'video/mp4':null):bytes[0]===255&&bytes[1]===216&&bytes[2]===255?'image/jpeg':bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?'image/png':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP'?'image/webp':null;if(!mime)return fail(400,'invalid_image');}
-   const limit=await isAdminSession(token)?1000000:dailyLimit();if(!limit)return fail(503,'accounts_paused');
+   const access=await mediaLimit(token,await isAdminSession(token));if(access.error)return fail(access.status,access.error);const limit=access.limit;if(!limit)return fail(503,'accounts_paused');
    const reserved=await supabaseRpc('consume_ai_message',token,{p_limit:limit});const row=Array.isArray(reserved.data)?reserved.data[0]:null;if(reserved.status!==200||!row)return fail(503,'accounts_unavailable');if(!row.ok)return fail(429,'daily_limit');
    if(engine!=='wan'){try{const job=await direct.start(engine,b.prompt,b.duration,sourceId?{bytes,mime}:null);return res.status(202).json({job:seal({...job,owner:user.id,expires:Date.now()+86400000},cipherKey)})}catch(e){if(['provider_request','provider_key_missing'].includes(e.message))await supabaseRpc('refund_ai_message',token,{p_reservation:row.reservation_id});return fail(502,e.message)}}
    // Keep a reservation on ambiguous network failure: the provider may have accepted the job.

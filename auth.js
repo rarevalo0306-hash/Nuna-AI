@@ -26,7 +26,8 @@ function usageResetAt() {
 function usageLine() {
   if (!authUsage) return ''
   const left = Math.max(authUsage.limit - authUsage.used, 0)
-  return authText(`Has usado ${authUsage.used} de ${authUsage.limit} mensajes de hoy (te quedan ${left}). Se renuevan ${usageResetAt()}.`,
+  const planText = authUsage.planName ? authText(`Plan ${authUsage.planName}. `, `${authUsage.planName} plan. `) : ''
+  return planText + authText(`Has usado ${authUsage.used} de ${authUsage.limit} mensajes de hoy (te quedan ${left}). Se renuevan ${usageResetAt()}.`,
     `You have used ${authUsage.used} of today's ${authUsage.limit} messages (${left} left). They reset ${usageResetAt()}.`)
 }
 async function refreshUsage() {
@@ -563,7 +564,8 @@ async function loadAccountData() {
     if (first) openAIStatus.textContent = local.length ? authText('Sesión iniciada. Los chats de este dispositivo se están añadiendo a tu cuenta.', 'Signed in. Chats from this device are being added to your account.') : authText('Sesión iniciada.', 'Signed in.')
     render()
     queueSync(0)
-    if (first) refreshUsage()
+    // The plan decides which models the composer offers, so repaint once it is known.
+    if (first) refreshUsage().then(() => { if (stillSameUser()) render() })
   } catch (error) {
     console.warn('nuna_load_error', error?.code || error?.message || error)
     if (first && stillSameUser()) {
