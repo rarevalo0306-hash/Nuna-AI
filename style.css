@@ -205,3 +205,7 @@ html,body{max-width:100%;overflow-x:hidden}main,#scroll-area{min-height:0}
  .mobile-suggestion-ad span{font-size:12px;color:var(--muted);line-height:1.4}
  .mobile-suggestion-ad .mobile-ad-available{color:var(--accent);font-size:11px}
 }
+/* Video continuation controls share the chat's touch-friendly appearance. */
+form[data-extension] input,form[data-extension] select,form[data-extension] button{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px;min-height:44px;box-sizing:border-box}
+form[data-extension] input{flex-basis:240px!important}form[data-extension] small{color:var(--muted)}
+@media(max-width:600px){form[data-extension] input{flex-basis:100%!important}form[data-extension] select{max-width:100%;font-size:16px}}
