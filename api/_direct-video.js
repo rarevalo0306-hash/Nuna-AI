@@ -23,7 +23,7 @@ async function poll(job){
  const headers=google?{'x-goog-api-key':key}:{Authorization:'Bearer '+key};
  const url=google?'https://generativelanguage.googleapis.com/v1beta/'+job.id:'https://api.x.ai/v1/videos/'+job.id;
  const r=await fetch(url,{headers,signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error('provider_request');const d=await r.json();
- if(google){if(d.error)throw Error('video_failed');if(!d.done)return {status:'IN_PROGRESS'};}else{if(['expired','failed'].includes(d.status))throw Error('video_failed');if(d.status!=='done')return {status:'IN_PROGRESS'};if(d.video?.respect_moderation===false)throw Error('video_failed')}
+ if(google){if(d.error)throw Error('video_failed');if(!d.done)return {status:'IN_PROGRESS'};}else{if(['expired','failed'].includes(d.status))throw Error('video_failed');if(d.status!=='done')return {status:'IN_PROGRESS'};if(d.video?.respect_moderation===false)throw Error('video_content_rejected')}
  let output;try{output=new URL(google?d.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri:d.video?.url)}catch{throw Error('video_failed')}
  if(output.protocol!=='https:'||output.username||output.password||!(google?output.hostname==='generativelanguage.googleapis.com':output.hostname==='vidgen.x.ai'))throw Error('invalid_answer');
  return {status:'COMPLETED',url:output.href,headers:google?headers:{}};

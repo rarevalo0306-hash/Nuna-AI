@@ -21,7 +21,7 @@
   if(running.has(chat.id)||!chat.videoJob)return;running.add(chat.id);const job=chat.videoJob;
   try{for(let i=0;i<240;i++){
    if(authUser?.id!==owner||!custom.includes(chat))return;
-   const headers={Authorization:'Bearer '+await authAccessToken()};const r=await fetch('/api/videos?job='+encodeURIComponent(job),{headers});const data=await r.json();if(!r.ok)throw Error('No se pudo completar el video.');
+   const headers={Authorization:'Bearer '+await authAccessToken()};const r=await fetch('/api/videos?job='+encodeURIComponent(job),{headers});const data=await r.json();if(!r.ok){if(['video_failed','video_content_rejected','invalid_job','job_unavailable'].includes(data.error)){delete chat.videoJob;try{localStorage.removeItem('nuna-video-'+owner+'-'+chat.id)}catch{}save();throw Error(data.error==='video_content_rejected'?'El proveedor rechazó este video por sus reglas de contenido. Prueba otra descripción.':'El trabajo de video terminó sin resultado. Puedes iniciar otro video.')}throw Error('No se pudo comprobar el video. Intenta recargar para recuperar el trabajo.');}
    if(data.status==='COMPLETED'){
     const output=await fetch('/api/videos?job='+encodeURIComponent(job)+'&download=1',{headers});if(!output.ok)throw Error('No se pudo descargar el video.');const blob=await output.blob();if(authUser?.id!==owner||!custom.includes(chat))return;
     const file=new File([blob],'NUNA-video.mp4',{type:'video/mp4'});const saved=await NunaArtifacts.store(file);if(authUser?.id!==owner||!custom.includes(chat))return;
@@ -30,7 +30,7 @@
    if(!['IN_QUEUE','IN_PROGRESS'].includes(data.status))throw Error('No se pudo completar el video.');
    await new Promise(resolve=>setTimeout(resolve,5000));
   }throw Error('El video sigue pendiente. Recarga para comprobarlo sin generar otro.');
-  }catch(e){if(authUser?.id===owner)openAIStatus.textContent=e.message+' Recarga para volver a comprobar.'}finally{running.delete(chat.id)}
+  }catch(e){if(authUser?.id===owner)openAIStatus.textContent=e.message}finally{running.delete(chat.id)}
  }
  send=async function(value){const text=String(value||'').trim();const explicit=/(?:crea|genera|haz|anima|create|generate|animate).{0,40}(?:video|imagen|foto|image|photo)/i.test(text)&&/(video|anima|animate)/i.test(text)&&! /\bno\s+(?:crees|generes|hagas|quiero)/i.test(text);const followup=window.NunaVideoIntent?.videoFollowup(text,custom.find(c=>c.id===active));if(!source&&!waiting&&!explicit&&!followup)return priorSend(value);if(!text||openAIBusy)return;
  const owner=authUser?.id;if(!owner||!await waitForAccount())return;let chat=custom.find(c=>c.id===active);if(chat?.videoJob){openAIStatus.textContent='Ya hay un video pendiente en este chat.';resume(chat,owner);return}

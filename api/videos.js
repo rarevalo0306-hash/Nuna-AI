@@ -45,5 +45,5 @@ module.exports=async(req,res)=>{
   if(req.query.download!=='1')return res.status(200).json({status:'COMPLETED'});
   const file=await fetch(output,{redirect:'error',signal:AbortSignal.timeout(60000)});if(!file.ok||Number(file.headers.get('content-length'))>150000000)return fail(502,'video_unavailable');
   res.setHeader('Content-Type','video/mp4');res.setHeader('Content-Disposition','attachment; filename="NUNA-video.mp4"');let count=0;for await(const chunk of file.body){count+=chunk.length;if(count>150000000){res.destroy();return}res.write(chunk)}res.end();
- }catch{return fail(502,'video_unavailable')}
+ }catch(e){return fail(502,['video_failed','video_content_rejected','provider_request','provider_key_missing'].includes(e.message)?e.message:'video_unavailable')}
 };
