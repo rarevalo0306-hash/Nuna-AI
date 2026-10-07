@@ -1,6 +1,7 @@
 const crypto=require('node:crypto');
 const {verifiedSession,isAdminSession,dailyLimit,supabaseRpc}=require('./_supabase');
 const base='https://queue.fal.run/fal-ai/wan/v2.2-a14b';
+const queueUrl=(s,id,suffix='')=>{try{const u=new URL(s);return u.origin==='https://queue.fal.run'&&u.pathname.startsWith('/fal-ai/wan/')&&u.pathname.endsWith('/requests/'+id+suffix)&&!u.search?u.href:null}catch{return null}};
 const seal=(obj,key)=>{const iv=crypto.randomBytes(12),c=crypto.createCipheriv('aes-256-gcm',key,iv),b=Buffer.concat([c.update(JSON.stringify(obj)),c.final()]);return Buffer.concat([iv,c.getAuthTag(),b]).toString('base64url')};
 const unseal=(s,key)=>{const b=Buffer.from(s,'base64url'),d=crypto.createDecipheriv('aes-256-gcm',key,b.subarray(0,12));d.setAuthTag(b.subarray(12,28));return JSON.parse(Buffer.concat([d.update(b.subarray(28)),d.final()]).toString())};
 module.exports=async(req,res)=>{
@@ -21,12 +22,12 @@ module.exports=async(req,res)=>{
    const r=await fetch(base+'/image-to-video/turbo',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({image_url:'data:'+mime+';base64,'+bytes.toString('base64'),prompt:b.prompt,resolution:'720p',enable_safety_checker:true,enable_output_safety_checker:true,enable_prompt_expansion:false}),signal:AbortSignal.timeout(25000)});const data=await r.json();
    if(!r.ok){await supabaseRpc('refund_ai_message',token,{p_reservation:row.reservation_id});return fail(502,'provider_request')}
    if(!/^[\w-]{1,100}$/.test(data.request_id||''))return fail(502,'invalid_answer');
-   return res.status(202).json({job:seal({id:data.request_id,owner:user.id,expires:Date.now()+86400000},cipherKey)});
+   return res.status(202).json({job:seal({id:data.request_id,status:queueUrl(data.status_url,data.request_id,'/status')||'https://queue.fal.run/fal-ai/wan/requests/'+data.request_id+'/status',result:queueUrl(data.response_url,data.request_id)||'https://queue.fal.run/fal-ai/wan/requests/'+data.request_id,owner:user.id,expires:Date.now()+86400000},cipherKey)});
   }
   const raw=req.query?.job;if(typeof raw!=='string'||raw.length>2000)return fail(400,'invalid_job');let job;try{job=unseal(raw,cipherKey)}catch{return fail(400,'invalid_job')}
   if(job.owner!==user.id||job.expires<Date.now()||! /^[\w-]{1,100}$/.test(job.id))return fail(403,'job_unavailable');
-  const url=base+'/requests/'+encodeURIComponent(job.id);
-  const status=await fetch(url+'/status',{headers,signal:AbortSignal.timeout(15000)});if(!status.ok)return fail(502,'provider_request');const state=await status.json();if(state.status!=='COMPLETED')return res.status(200).json({status:state.status});
+  const url=job.result; if(!queueUrl(url,job.id)||!queueUrl(job.status,job.id,'/status'))return fail(400,'invalid_job');
+  const status=await fetch(job.status,{headers,signal:AbortSignal.timeout(15000)});if(!status.ok)return fail(502,'provider_request');const state=await status.json();if(state.status!=='COMPLETED')return res.status(200).json({status:state.status});
   const result=await fetch(url,{headers,signal:AbortSignal.timeout(15000)});if(!result.ok)return fail(502,'video_failed');const data=await result.json();let output;try{output=new URL(data.video.url)}catch{return fail(502,'invalid_answer')}
   if(output.protocol!=='https:'||!(output.hostname==='fal.media'||output.hostname.endsWith('.fal.media')))return fail(502,'invalid_answer');
   if(req.query.download!=='1')return res.status(200).json({status:'COMPLETED'});
