@@ -19,10 +19,10 @@ module.exports=async function(req,res){
   if(useFal){
    const r=await fetch('https://fal.run/fal-ai/flux/schnell',{method:'POST',headers:{Authorization:'Key '+falKey,'Content-Type':'application/json'},body:JSON.stringify({prompt:body.prompt,image_size:'square_hd',num_images:1,num_inference_steps:4,enable_safety_checker:true,output_format:'jpeg',sync_mode:true}),signal:AbortSignal.timeout(170000)});
    const data=await r.json().catch(()=>({}));
-   if(!r.ok){await refund();return fail(r.status===429?429:502,r.status===429?'provider_limit':'provider_request')}
+   if(!r.ok){console.warn(JSON.stringify({nuna_fal_error:true,status:r.status}));await refund();return fail(r.status===429?429:502,r.status===429?'provider_limit':'provider_request')}
    if(data.has_nsfw_concepts?.some(Boolean)){await refund();return fail(400,'image_declined')}
    const match=/^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(data.images?.[0]?.url||'');
-   if(!match||match[1].length>4000000){await refund();return fail(502,'invalid_answer')}
+   if(!match||match[1].length>4000000){console.warn(JSON.stringify({nuna_fal_error:true,reason:'invalid_answer',inline:Boolean(data.images?.[0]?.url?.startsWith('data:')),mime:data.images?.[0]?.content_type||null}));await refund();return fail(502,'invalid_answer')}
    return res.status(200).json({image:match[1],type:'image/jpeg',edited:false});
   }
   const model=env('NUNA_IMAGE_MODEL')||'gpt-image-1-mini';let request;
