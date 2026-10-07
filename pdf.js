@@ -30,11 +30,11 @@
      const title=typeof chat.title==='string'?chat.title:chat.title[lang];
      const cached=prepared.get(key);
      const file=cached?.source===entries[index][1]?cached.file:new File([documentFromText(entries[index][1],title||'NUNA',window.jspdf.jsPDF).output('arraybuffer')],'NUNA-documento.pdf',{type:'application/pdf'});
-     const item=cached?.source===entries[index][1]?cached:{file,source:entries[index][1],open:false,saved:false};prepared.set(key,item);
+     const item=cached?.source===entries[index][1]?cached:{file,source:entries[index][1],open:false,saved:false};prepared.set(key,item);button.hidden=true;
      if(appleMobile||automatic||restoring){
-      const nativeSave=document.createElement('button');nativeSave.type='button';nativeSave.textContent=es?'Guardar en dispositivo':'Save to device';
+      const nativeSave=document.createElement('button');nativeSave.type='button';nativeSave.textContent='⇩';nativeSave.style.fontSize='24px';nativeSave.style.minHeight='44px';nativeSave.setAttribute('aria-label',es?'Descargar PDF':'Download PDF');nativeSave.title=es?'Descargar PDF':'Download PDF';
       const card=document.createElement('button');card.type='button';card.textContent='▤  '+(title||'NUNA')+'.pdf';card.style.cssText='display:block;width:100%;max-width:440px;text-align:left;padding:18px;margin:14px 0;border:1px solid var(--border);border-radius:14px;background:var(--panel);color:inherit;font:inherit;cursor:pointer';card.setAttribute('aria-label',es?'Abrir vista previa del PDF':'Open PDF preview');article.append(card);
-      const note=document.createElement('span');note.setAttribute('role','status');note.textContent=es?'Pulsa guardar y elige Guardar en Archivos.':'Tap save and choose Save to Files.';
+      const note=document.createElement('span');note.setAttribute('role','status');note.textContent='';
       nativeSave.onclick=async()=>{
        if(owner!==(authUser?.id||undefined)){note.textContent=es?'La cuenta cambió. Crea el PDF de nuevo.':'Account changed. Create the PDF again.';return}
        if(!appleMobile){downloadFile(file);note.textContent=es?'Descarga solicitada.':'Download requested.';return}
