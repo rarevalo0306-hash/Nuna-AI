@@ -144,11 +144,22 @@ function voiceFailure(error) {
 function storeVoiceRecords() {
   if (!voiceChat || (authUser?.id || null) !== voiceOwner || !custom.includes(voiceChat)) return;
   voiceChat.messages = [...voiceBase, ...voiceRecords.filter(r => r.text).map(r => [r.role, r.text])];
+  voiceChat.attachments=voiceChat.attachments||{};voiceRecords.filter(r=>r.text).forEach((r,i)=>{if(r.files)voiceChat.attachments[voiceBase.length+i]=r.files});
   save(); render(); if (active === voiceChat.id) scrollBottom();
   const visibleRecords=voiceRecords.filter(r=>r.text);const last=visibleRecords.at(-1);if(last?.role==='assistant'&&last.complete)window.NunaPDF?.onReply(voiceChat,voiceChat.messages.length-1,voiceOwner);
 }
 function deviceTimeZone(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone}catch{return 'UTC'}}
 const voiceClockCalls=new Set();
+async function answerVoiceImage(call){
+ if(call.name!=='create_image'||typeof call.call_id!=='string'||voiceClockCalls.has(call.call_id)||!voiceConnection?.send)return;
+ voiceClockCalls.add(call.call_id);const generation=voiceGeneration,connection=voiceConnection,owner=voiceOwner,chat=voiceChat;let output;
+ try{const args=JSON.parse(call.arguments||'{}');if(typeof args.prompt!=='string'||!args.prompt.trim()||args.prompt.length>4000)throw Error('invalid_request');voiceSetStatus('Creando tu imagen…','Creating your image…');const file=await window.NunaImages.create(args.prompt,owner);
+ if(generation!==voiceGeneration||connection!==voiceConnection||chat!==voiceChat||authUser?.id!==owner)return;
+ voiceRecords.push({id:call.call_id,role:'assistant',text:vText('Aquí tienes tu imagen.','Here is your image.'),files:[file],complete:true});storeVoiceRecords();output={ok:true,saved_in_chat:true};
+ }catch{output={ok:false,error:'Image could not be created. Do not claim success.'}}
+ if(generation!==voiceGeneration||connection!==voiceConnection)return;
+ connection.send({type:'conversation.item.create',item:{type:'function_call_output',call_id:call.call_id,output:JSON.stringify(output)}});connection.send({type:'response.create'});
+}
 async function answerVoiceClock(call){
  if(call.name!=='get_current_time'||typeof call.call_id!=='string'||voiceClockCalls.has(call.call_id)||!voiceConnection?.send)return;
  voiceClockCalls.add(call.call_id);const generation=voiceGeneration,connection=voiceConnection;let clock;
@@ -158,7 +169,7 @@ async function answerVoiceClock(call){
  connection.send({type:'response.create'});
 }
 function receiveVoiceEvent(event) {
-  if(event.type==='response.done'&&event.response?.status==='completed'){for(const item of event.response.output||[]){if(item.type==='function_call')answerVoiceClock(item);else{const record=voiceRecords.find(r=>r.id===item.id);if(record)record.complete=true}}storeVoiceRecords();}
+  if(event.type==='response.done'&&event.response?.status==='completed'){for(const item of event.response.output||[]){if(item.type==='function_call'){if(item.name==='create_image')answerVoiceImage(item);else answerVoiceClock(item);}else{const record=voiceRecords.find(r=>r.id===item.id);if(record)record.complete=true}}storeVoiceRecords();}
 
   if (event.type === 'input_audio_buffer.committed') {
     if (!voiceRecords.some(r => r.id === event.item_id)) voiceRecords.push({id:event.item_id,role:'user',text:''});
