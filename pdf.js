@@ -21,6 +21,7 @@
   const entries=Array.isArray(chat.messages)?chat.messages:chat.messages[lang];
   document.querySelectorAll('#messages .message').forEach((article,index)=>{
    if(entries[index]?.[0]!=='assistant')return;
+   if((chat.attachments?.[index]||entries[index]?.[2]?.files||[]).some(f=>f.type?.startsWith('video/')))return;
    const actions=article.querySelector('.message-actions'),button=document.createElement('button'),es=lang==='es';
    button.type='button';button.textContent=appleMobile?(es?'Crear PDF':'Create PDF'):(es?'Descargar PDF':'Download PDF');
    const key=chat.id+':'+index,existing=prepared.get(key);
