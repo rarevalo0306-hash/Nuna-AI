@@ -17,11 +17,11 @@ module.exports=async function(req,res){
  const refund=()=>supabaseRpc('refund_ai_message',token,{p_reservation:row.reservation_id});
  try{
   const model=env('NUNA_IMAGE_MODEL')||'gpt-image-1-mini';let request;
-  if(image){const form=new FormData();for(const [k,v]of Object.entries({model,prompt:body.prompt,n:'1',size:'1024x1024',quality:'low',output_format:'jpeg'}))form.set(k,v);form.set('image',image,'source.'+(image.type==='image/jpeg'?'jpg':image.type.split('/')[1]));request={headers:{Authorization:'Bearer '+key},body:form};}
+  if(image){const form=new FormData();for(const [k,v]of Object.entries({model,prompt:body.prompt,n:'1',size:'1024x1024',quality:'low',output_format:'jpeg'}))form.set(k,v);form.set('image[]',image,'source.'+(image.type==='image/jpeg'?'jpg':image.type.split('/')[1]));request={headers:{Authorization:'Bearer '+key},body:form};}
   else request={headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model,prompt:body.prompt,n:1,size:'1024x1024',quality:'low',output_format:'jpeg'})};
   const r=await fetch('https://api.openai.com/v1/images/'+(image?'edits':'generations'),{method:'POST',...request,signal:AbortSignal.timeout(170000)});const data=await r.json().catch(()=>({}));
-  if(!r.ok){await refund();return fail(r.status===429?429:502,r.status===429?'provider_limit':data.error?.code==='moderation_blocked'?'image_declined':'provider_request')}
+  if(!r.ok){console.warn(JSON.stringify({nuna_image_error:true,status:r.status,code:data.error?.code||null,param:data.error?.param||null,type:data.error?.type||null}));await refund();return fail(r.status===429?429:502,r.status===429?'provider_limit':data.error?.code==='moderation_blocked'?'image_declined':'provider_request')}
   const b64=data.data?.[0]?.b64_json;if(typeof b64!=='string'||!b64.length||b64.length>4000000){await refund();return fail(502,'invalid_answer')}
   return res.status(200).json({image:b64,type:'image/jpeg',edited:Boolean(image)});
- }catch(error){if(error.name!=='TimeoutError')await refund();return fail(502,error.name==='TimeoutError'?'image_timeout':'provider_unavailable')}
+ }catch(error){console.warn(JSON.stringify({nuna_image_error:true,name:error.name}));if(error.name!=='TimeoutError')await refund();return fail(502,error.name==='TimeoutError'?'image_timeout':'provider_unavailable')}
 };
