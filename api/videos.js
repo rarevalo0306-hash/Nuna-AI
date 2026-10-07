@@ -9,11 +9,12 @@ module.exports=async(req,res)=>{
  res.setHeader('Cache-Control','no-store');const fail=(s,error)=>res.status(s).json({error});
  if(!['POST','GET'].includes(req.method))return fail(405,'method_not_allowed');
  const token=(/^Bearer\s+([\w.-]{20,4096})$/i.exec(req.headers.authorization||'')||[])[1];const user=await verifiedSession(token);if(!user)return fail(401,'login_required');
- const key=(process.env.FAL_KEY||'').trim();if(!key)return fail(503,'provider_key_missing');const cipherKey=crypto.createHash('sha256').update(key).digest();const headers={Authorization:'Key '+key};
+ const key=(process.env.FAL_KEY||process.env.XAI_API_KEY||process.env.GEMINI_API_KEY||'').trim();if(!key)return fail(503,'provider_key_missing');const cipherKey=crypto.createHash('sha256').update(key).digest();const headers={Authorization:'Key '+key};
  try{
   if(req.method==='POST'){
    const b=typeof req.body==='string'?JSON.parse(req.body):req.body;
    const extending=b?.action==='extend', sourceId=extending?b.videoId:b?.imageId,engine=b?.engine||'wan';
+   if(engine==='wan'&&!(process.env.FAL_KEY||'').trim())return fail(503,'provider_key_missing');
    if(!['wan','grok','gemini'].includes(engine)||extending&&engine!=='wan')return fail(400,'invalid_engine');
    if(engine!=='wan'&&!direct.engines[engine].durations.includes(b.duration))return fail(400,'invalid_duration');
    if(extending&&![5,10,15].includes(b.duration))return fail(400,'invalid_duration');

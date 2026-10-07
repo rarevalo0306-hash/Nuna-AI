@@ -1,7 +1,7 @@
 window.NunaMedia={imageEngine:'default',render(panel,es){
  const title=document.createElement('h4');title.textContent=es?'Imágenes y fotos':'Images and photos';panel.append(title);
  const image=document.createElement('select');image.setAttribute('aria-label',es?'Generador de imágenes':'Image generator');for(const [id,name]of [['default','FLUX Schnell / Kontext'],['grok','Grok Imagine · API directa'],['gemini','Gemini Image · API directa']])image.append(new Option(name,id));image.value=this.imageEngine;image.onchange=()=>{this.imageEngine=image.value};panel.append(image);
- const help=document.createElement('p');help.textContent=es?'La selección se aplica a las nuevas imágenes. Para editar fotos, usa Kontext o Gemini. Cada proveedor cobra su consumo por separado.':'Selection applies to new images. Use Kontext or Gemini to edit photos. Each provider bills its usage separately.';panel.append(help);
+ const help=document.createElement('p');help.textContent=es?'La selección se aplica a las nuevas imágenes. También puedes editar fotos con cada opción. Cada proveedor cobra su consumo por separado.':'Selection applies to new images. Each option also supports photo edits. Each provider bills its usage separately.';panel.append(help);
  const videos=document.createElement('h4');videos.textContent=es?'Videos · APIs directas':'Videos · direct APIs';panel.append(videos);
  for(const [engine,name,durations]of [['grok','Grok Imagine',[5,10,15]],['gemini','Veo 3.1 Fast',[4,6,8]]]){
   const card=document.createElement('div');card.className='settings-model model-card';const label=document.createElement('strong');label.textContent=name;
