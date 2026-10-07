@@ -10,5 +10,38 @@
  }
  if(typeof module!=='undefined'&&module.exports){module.exports={documentFromText};return}
  const previousRender=render;
- render=function(){previousRender();const chat=all().find(c=>c.id===active);if(!chat)return;const entries=Array.isArray(chat.messages)?chat.messages:chat.messages[lang];document.querySelectorAll('#messages .message').forEach((article,index)=>{if(entries[index]?.[0]!=='assistant')return;const button=document.createElement('button');button.type='button';button.textContent=lang==='es'?'Descargar PDF':'Download PDF';button.onclick=async()=>{button.disabled=true;const owner=authUser?.id,es=lang==='es';try{const title=typeof chat.title==='string'?chat.title:chat.title[lang];const doc=documentFromText(entries[index][1],title||'NUNA',window.jspdf.jsPDF);const pdfBlob=doc.output('blob'),url=URL.createObjectURL(pdfBlob),link=document.createElement('a');link.href=url;link.download='NUNA-documento.pdf';link.target='_blank';link.rel='noopener noreferrer';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);button.textContent=es?'PDF descargado':'PDF downloaded';if(owner){try{const file=new File([doc.output('arraybuffer')],'NUNA-documento.pdf',{type:'application/pdf'});if(authUser?.id!==owner)return;await window.NunaArtifacts.store(file);if(authUser?.id===owner)button.textContent=es?'PDF guardado y descargado':'PDF saved and downloaded'}catch{if(authUser?.id===owner)button.textContent=es?'Descargado; no se pudo guardar':'Downloaded; could not save'}}}catch{button.textContent=es?'No se pudo crear el PDF':'Could not create PDF'}finally{button.disabled=false}};article.querySelector('.message-actions')?.append(button)})};render();
+ const appleMobile=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+ function downloadFile(file){const url=URL.createObjectURL(file),link=document.createElement('a');link.href=url;link.download=file.name;link.target='_blank';link.rel='noopener noreferrer';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}
+ render=function(){
+  previousRender();const chat=all().find(c=>c.id===active);if(!chat)return;
+  const entries=Array.isArray(chat.messages)?chat.messages:chat.messages[lang];
+  document.querySelectorAll('#messages .message').forEach((article,index)=>{
+   if(entries[index]?.[0]!=='assistant')return;
+   const actions=article.querySelector('.message-actions'),button=document.createElement('button'),es=lang==='es';
+   button.type='button';button.textContent=appleMobile?(es?'Crear PDF':'Create PDF'):(es?'Descargar PDF':'Download PDF');
+   button.onclick=async()=>{
+    button.disabled=true;const owner=authUser?.id;
+    try{
+     const title=typeof chat.title==='string'?chat.title:chat.title[lang];
+     const doc=documentFromText(entries[index][1],title||'NUNA',window.jspdf.jsPDF);
+     const file=new File([doc.output('arraybuffer')],'NUNA-documento.pdf',{type:'application/pdf'});
+     if(appleMobile){
+      const nativeSave=document.createElement('button');nativeSave.type='button';nativeSave.textContent=es?'Guardar en dispositivo':'Save to device';
+      const note=document.createElement('span');note.setAttribute('role','status');note.textContent=es?'Pulsa guardar y elige Guardar en Archivos.':'Tap save and choose Save to Files.';
+      nativeSave.onclick=async()=>{
+       if(owner!==(authUser?.id||undefined)){note.textContent=es?'La cuenta cambió. Crea el PDF de nuevo.':'Account changed. Create the PDF again.';return}
+       if(!navigator.share||!navigator.canShare?.({files:[file]})){note.textContent=es?'Este navegador no permite guardar con el menú nativo. Puedes descargarlo desde Documentos.':'This browser cannot use native file saving. Download it from Documents.';return}
+       nativeSave.disabled=true;
+       try{await navigator.share({files:[file],title:title||'NUNA'});note.textContent=es?'Menú de guardado cerrado.':'Save menu closed.'}
+       catch(error){note.textContent=error.name==='AbortError'?(es?'Guardado cancelado.':'Save canceled.'):(es?'No se pudo abrir el menú. Pulsa guardar para reintentar.':'Could not open menu. Tap save to retry.')}
+       finally{nativeSave.disabled=false}
+      };
+      actions.append(nativeSave,note);button.textContent=es?'PDF listo':'PDF ready';
+     }else{downloadFile(file);button.textContent=es?'Descarga solicitada':'Download requested'}
+     if(owner){try{if(authUser?.id!==owner)return;await window.NunaArtifacts.store(file);if(authUser?.id===owner)button.textContent=es?'PDF guardado en Documentos':'PDF saved in Documents'}catch{if(authUser?.id===owner)button.textContent=es?'PDF listo; no se pudo guardar en la cuenta':'PDF ready; could not save to account'}}
+    }catch{button.textContent=es?'No se pudo crear el PDF':'Could not create PDF';button.disabled=false}
+   };
+   actions?.append(button);
+  });
+ };render();
 })();
