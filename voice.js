@@ -145,6 +145,7 @@ function storeVoiceRecords() {
   if (!voiceChat || (authUser?.id || null) !== voiceOwner || !custom.includes(voiceChat)) return;
   voiceChat.messages = [...voiceBase, ...voiceRecords.filter(r => r.text).map(r => [r.role, r.text])];
   save(); render(); if (active === voiceChat.id) scrollBottom();
+  const visibleRecords=voiceRecords.filter(r=>r.text);const last=visibleRecords.at(-1);if(last?.role==='assistant'&&last.complete)window.NunaPDF?.onReply(voiceChat,voiceChat.messages.length-1,voiceOwner);
 }
 function deviceTimeZone(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone}catch{return 'UTC'}}
 const voiceClockCalls=new Set();
@@ -157,7 +158,7 @@ async function answerVoiceClock(call){
  connection.send({type:'response.create'});
 }
 function receiveVoiceEvent(event) {
-  if(event.type==='response.done'&&event.response?.status==='completed'){for(const item of event.response.output||[])if(item.type==='function_call')answerVoiceClock(item);}
+  if(event.type==='response.done'&&event.response?.status==='completed'){for(const item of event.response.output||[]){if(item.type==='function_call')answerVoiceClock(item);else{const record=voiceRecords.find(r=>r.id===item.id);if(record)record.complete=true}}storeVoiceRecords();}
 
   if (event.type === 'input_audio_buffer.committed') {
     if (!voiceRecords.some(r => r.id === event.item_id)) voiceRecords.push({id:event.item_id,role:'user',text:''});
