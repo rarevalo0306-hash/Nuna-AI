@@ -1,0 +1,32 @@
+// Private image-to-video jobs; only explicit requests start billable generation.
+(function(){
+ let source=null;const running=new Set();const priorSend=send,priorFiles=renderChatAttachments;
+ function select(file){source=file;document.getElementById('prompt').focus();openAIStatus.textContent=lang==='es'?'Describe cómo quieres animar esta imagen. Video en 720p.':'Describe how to animate this image. Video at 720p.'}
+ renderChatAttachments=function(container,files){priorFiles(container,files);const owner=authUser?.id;for(const file of files){if(file.provider!=='r2')continue;if(/^image\/(jpeg|png|webp)$/.test(file.type)){const b=document.createElement('button');b.type='button';b.textContent='▶';b.setAttribute('aria-label',lang==='es'?'Animar imagen':'Animate image');b.onclick=()=>select(file);container.append(b)}if(file.type==='video/mp4'){const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='metadata';video.style.cssText='display:block;width:100%;max-width:640px;border-radius:14px;margin-top:12px';container.append(video);accountStorageRequest('/files/'+encodeURIComponent(file.id),{},owner).then(r=>r.blob()).then(blob=>{if(owner!==authUser?.id||!video.isConnected)return;const url=URL.createObjectURL(blob);video.src=url;const observer=new MutationObserver(()=>{if(!video.isConnected){URL.revokeObjectURL(url);observer.disconnect()}});observer.observe(document.getElementById('messages'),{childList:true,subtree:true})}).catch(()=>{video.remove()})}}};
+ async function resume(chat,owner){
+  if(running.has(chat.id)||!chat.videoJob)return;running.add(chat.id);const job=chat.videoJob;
+  try{for(let i=0;i<240;i++){
+   if(authUser?.id!==owner||!custom.includes(chat))return;
+   const headers={Authorization:'Bearer '+await authAccessToken()};const r=await fetch('/api/videos?job='+encodeURIComponent(job),{headers});const data=await r.json();if(!r.ok)throw Error('No se pudo completar el video.');
+   if(data.status==='COMPLETED'){
+    const output=await fetch('/api/videos?job='+encodeURIComponent(job)+'&download=1',{headers});if(!output.ok)throw Error('No se pudo descargar el video.');const blob=await output.blob();if(authUser?.id!==owner||!custom.includes(chat))return;
+    const file=new File([blob],'NUNA-video.mp4',{type:'video/mp4'});const saved=await NunaArtifacts.store(file);if(authUser?.id!==owner||!custom.includes(chat))return;
+    const index=chat.messages.length;chat.messages.push(['assistant',lang==='es'?'Aquí tienes tu video.':'Here is your video.']);chat.attachments=chat.attachments||{};chat.attachments[index]=[{...saved,name:file.name,type:file.type,size:file.size}];delete chat.videoJob;try{localStorage.removeItem('nuna-video-'+owner+'-'+chat.id)}catch{}save();render();openAIStatus.textContent=lang==='es'?'Video guardado en Videos.':'Video saved in Videos.';scrollBottom();return;
+   }
+   if(!['IN_QUEUE','IN_PROGRESS'].includes(data.status))throw Error('No se pudo completar el video.');
+   await new Promise(resolve=>setTimeout(resolve,5000));
+  }throw Error('El video sigue pendiente. Recarga para comprobarlo sin generar otro.');
+  }catch(e){if(authUser?.id===owner)openAIStatus.textContent=e.message+' Recarga para volver a comprobar.'}finally{running.delete(chat.id)}
+ }
+ send=async function(value){const text=String(value||'').trim();const explicit=/(?:crea|genera|haz|anima|create|generate|animate).{0,40}(?:video|imagen|foto|image|photo)/i.test(text)&&/(video|anima|animate)/i.test(text)&&! /\bno\s+(?:crees|generes|hagas|quiero)/i.test(text);if(!source&&!explicit)return priorSend(value);if(!text||openAIBusy)return;
+ const owner=authUser?.id;if(!owner||!await waitForAccount())return;let chat=custom.find(c=>c.id===active);if(chat?.videoJob){openAIStatus.textContent='Ya hay un video pendiente en este chat.';resume(chat,owner);return}
+ const photo=source||pendingAttachments.find(f=>f.provider==='r2'&&/^image\/(jpeg|png|webp)$/.test(f.type))||Object.values(chat?.attachments||{}).flat().reverse().find(f=>f.provider==='r2'&&/^image\/(jpeg|png|webp)$/.test(f.type));if(!photo){openAIStatus.textContent=lang==='es'?'Adjunta una foto o crea una imagen primero para animarla.':'Attach a photo or create an image first to animate it.';return}
+ if(!chat){chat={id:crypto.randomUUID(),title:text.slice(0,45),messages:[],project:currentProject};custom.unshift(chat);active=chat.id;assignNewChatSection(chat)}
+ openAIBusy=true;openAIStatus.textContent='Preparando tu video en 720p…';
+ try{const r=await fetch('/api/videos',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await authAccessToken()},body:JSON.stringify({prompt:text,imageId:photo.id})});const data=await r.json();if(!r.ok)throw Error(data.error==='daily_limit'?'Alcanzaste el límite diario.':'No se pudo iniciar el video.');if(authUser?.id!==owner||!custom.includes(chat))return;
+ chat.messages.push(['user',text]);chat.videoJob=data.job;try{localStorage.setItem('nuna-video-'+owner+'-'+chat.id,data.job)}catch{}source=null;pendingAttachments=[];document.getElementById('prompt').value='';save();render();refreshAttachments();openAIStatus.textContent='Creando tu video… puedes seguir usando el chat.';resume(chat,owner);
+ }catch(e){if(authUser?.id===owner)openAIStatus.textContent=e.message}finally{openAIBusy=false}
+ };
+ const priorNew=newChat;newChat=function(){source=null;priorNew()};['new-chat','new-top'].forEach(id=>document.getElementById(id).onclick=newChat);
+ const priorRender=render;render=function(){priorRender();const owner=authUser?.id;if(owner)for(const chat of custom){try{chat.videoJob=chat.videoJob||localStorage.getItem('nuna-video-'+owner+'-'+chat.id)}catch{}if(chat.videoJob)resume(chat,owner)}};render();
+})();

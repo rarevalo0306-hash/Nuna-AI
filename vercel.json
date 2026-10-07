@@ -1,1 +1,1 @@
-{"functions":{"api/images.js":{"maxDuration":180}}}
+{"functions": {"api/images.js": {"maxDuration": 180}, "api/videos.js": {"maxDuration": 120}}}
