@@ -8,14 +8,33 @@ module.exports=async function(req,res){
  let body=req.body;if(typeof body==='string'){try{body=JSON.parse(body)}catch{return fail(400,'invalid_request')}}
  if(typeof body?.prompt!=='string'||!body.prompt.trim()||body.prompt.length>4000)return fail(400,'invalid_request');
  if(body.imageId!==undefined&&!/^[\w-]{1,100}$/.test(body.imageId))return fail(400,'invalid_image');
- const falKey=env('FAL_KEY'),useFal=Boolean(falKey);const key=useFal?falKey:env('OPENAI_API_KEY');if(!key)return fail(503,'provider_key_missing');if(useFal&&!/^[\x21-\x7E]+$/.test(falKey))return fail(503,'provider_key_invalid');
+ const engine=body.engine||'default';if(!['default','grok','gemini'].includes(engine))return fail(400,'invalid_engine');const falKey=env('FAL_KEY'),useFal=engine==='default'&&Boolean(falKey);const key=engine==='grok'?env('XAI_API_KEY'):engine==='gemini'?env('GEMINI_API_KEY'):useFal?falKey:env('OPENAI_API_KEY');if(!key)return fail(503,'provider_key_missing');if(useFal&&!/^[\x21-\x7E]+$/.test(falKey))return fail(503,'provider_key_invalid');
  let image=null;
  if(body.imageId){try{const r=await fetch('https://nuna-private-storage.nuna-security.workers.dev/files/'+encodeURIComponent(body.imageId),{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(15000)});if(!r.ok)return fail(403,'image_unavailable');const bytes=await r.arrayBuffer();if(!bytes.byteLength||bytes.byteLength>10485760)return fail(413,'image_too_large');const b=Buffer.from(bytes);const type=b[0]===255&&b[1]===216&&b[2]===255?'image/jpeg':b.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?'image/png':b.toString('ascii',0,4)==='RIFF'&&b.toString('ascii',8,12)==='WEBP'?'image/webp':null;if(!type)return fail(400,'invalid_image');image=new Blob([bytes],{type});}catch{return fail(502,'image_unavailable')}}
+ if(engine==='grok'&&image)return fail(400,'editing_not_connected');
  const admin=await isAdminSession(token),limit=admin?1000000:dailyLimit();if(!limit)return fail(503,'accounts_paused');
  const reserved=await supabaseRpc('consume_ai_message',token,{p_limit:limit});const row=Array.isArray(reserved.data)?reserved.data[0]:null;
  if(reserved.status!==200||!row)return fail(503,'accounts_unavailable');if(!row.ok)return fail(429,'daily_limit');
  const refund=()=>supabaseRpc('refund_ai_message',token,{p_reservation:row.reservation_id});
  try{
+  if(engine==='grok'||engine==='gemini'){
+   let url,headers,payload;
+   if(engine==='grok'){
+    if(image)return fail(400,'editing_not_connected');
+    url='https://api.x.ai/v1/images/generations';headers={Authorization:'Bearer '+key,'Content-Type':'application/json'};
+    payload={model:env('NUNA_GROK_IMAGE_MODEL')||'grok-imagine-image-2.0',prompt:body.prompt,n:1,response_format:'b64_json'};
+   }else{
+    url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(env('NUNA_GOOGLE_IMAGE_MODEL')||'gemini-2.5-flash-image')+':generateContent';headers={'x-goog-api-key':key,'Content-Type':'application/json'};
+    const parts=[{text:body.prompt}];if(image)parts.push({inlineData:{mimeType:image.type,data:Buffer.from(await image.arrayBuffer()).toString('base64')}});
+    payload={contents:[{role:'user',parts}],generationConfig:{responseModalities:['TEXT','IMAGE']}};
+   }
+   const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(payload),signal:AbortSignal.timeout(170000)});const data=await r.json().catch(()=>({}));
+   if(!r.ok){await refund();return fail(r.status===429?429:502,r.status===429?'provider_limit':'provider_request')}
+   const inline=data.candidates?.[0]?.content?.parts?.find(p=>p.inlineData)?.inlineData;
+   const output=engine==='grok'?data.data?.[0]?.b64_json:inline?.data,type=engine==='grok'?'image/jpeg':inline?.mimeType;
+   if(typeof output!=='string'||!output.length||output.length>14000000||!['image/jpeg','image/png','image/webp'].includes(type)){await refund();return fail(502,'invalid_answer')}
+   return res.status(200).json({image:output,type,edited:Boolean(image)});
+  }
   if(useFal){
    const falInput=image?{prompt:body.prompt,image_url:'data:'+image.type+';base64,'+Buffer.from(await image.arrayBuffer()).toString('base64'),num_images:1,num_inference_steps:28,enable_safety_checker:true,output_format:'jpeg',sync_mode:true,resolution_mode:'auto'}:{prompt:body.prompt,image_size:'square_hd',num_images:1,num_inference_steps:4,enable_safety_checker:true,output_format:'jpeg',sync_mode:true};
    const r=await fetch('https://fal.run/'+(image?'fal-ai/flux-kontext/dev':'fal-ai/flux/schnell'),{method:'POST',headers:{Authorization:'Key '+falKey,'Content-Type':'application/json'},body:JSON.stringify(falInput),signal:AbortSignal.timeout(170000)});
