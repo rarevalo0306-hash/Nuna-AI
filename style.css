@@ -310,3 +310,20 @@ form[data-extension] input{flex-basis:240px!important}form[data-extension] small
 @keyframes nuna-tech-sweep{0%,100%{top:15%;opacity:0}25%,75%{opacity:.6}50%{top:85%;opacity:.3}}
 @media(max-width:760px){#welcome .welcome-mark{width:108px;height:108px}#welcome .welcome-mark svg{width:54px}.nuna-tech-grid{inset:22px}.nuna-tech-scan{inset:20px}}
 @media(prefers-reduced-motion:reduce){.nuna-tech-orbit,.nuna-tech-scan::before{animation:none}.nuna-tech-scan{display:none}}
+
+/* Dimensional NUNA core: layered depth and deliberate, low-frequency motion. */
+#welcome .welcome-mark{width:190px;height:190px;margin-bottom:28px;background:radial-gradient(ellipse at 42% 38%,#7cfff327 0%,#17d8c31c 27%,#07202e80 48%,transparent 72%);filter:drop-shadow(0 12px 22px #00101755)}
+#welcome .welcome-mark svg{width:90px;stroke:#85ffea;stroke-width:1.8;filter:drop-shadow(0 0 3px #23d8bd) drop-shadow(0 0 15px #23d8bd77)}
+#welcome .welcome-mark::before{inset:10px;opacity:.95;animation-duration:36s}
+#welcome .welcome-mark::after{inset:30px;border-color:#23d8bd33;border-top-color:#b0fff3;border-bottom-color:#23d8bd99;box-shadow:inset 0 0 20px #23d8bd0d,0 0 16px #23d8bd15;animation-duration:22s}
+.nuna-tech-depth{position:absolute;inset:5px;border:1px solid #7effe666;border-radius:50%;transform:rotate(-28deg) scaleY(.48);box-shadow:0 0 8px #23d8bd33;animation:nuna-depth-drift 14s ease-in-out infinite;pointer-events:none}
+.nuna-tech-depth::after{content:'';position:absolute;inset:-7px;border:1px solid #48b8ef44;border-radius:50%;transform:rotate(70deg);box-shadow:0 0 12px #48b8ef22}
+.nuna-tech-pulse{position:absolute;inset:29px;border:1px solid #23d8bd55;border-radius:50%;animation:nuna-core-pulse 6s ease-out infinite;pointer-events:none}
+.nuna-tech-grid{inset:35px;background-size:10px 10px;opacity:.7}
+.nuna-tech-orbit{inset:0;border-color:#58dff333;animation-duration:48s}
+.nuna-tech-orbit::before{width:5px;height:5px;box-shadow:0 0 5px #9ffff0,0 0 14px #23d8bd}
+.nuna-tech-scan{inset:36px}
+@keyframes nuna-depth-drift{0%,100%{transform:rotate(-28deg) scaleY(.48);opacity:.6}50%{transform:rotate(-14deg) scaleY(.6);opacity:1}}
+@keyframes nuna-core-pulse{0%{transform:scale(.85);opacity:0}20%{opacity:.55}85%,100%{transform:scale(1.32);opacity:0}}
+@media(max-width:760px){#welcome .welcome-mark{width:128px;height:128px;margin-bottom:18px}#welcome .welcome-mark svg{width:62px}#welcome .welcome-mark::after{inset:21px}.nuna-tech-grid,.nuna-tech-scan{inset:25px}.nuna-tech-pulse{inset:22px}}
+@media(prefers-reduced-motion:reduce){.nuna-tech-depth,.nuna-tech-pulse{animation:none}.nuna-tech-pulse{opacity:.2}}
