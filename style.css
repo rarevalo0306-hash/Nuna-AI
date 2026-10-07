@@ -254,3 +254,18 @@ form[data-extension] input{flex-basis:240px!important}form[data-extension] small
 .user-message-actions{order:3;display:flex;gap:4px;margin-top:6px}
 .user-message-actions button{display:grid;place-items:center;width:36px;height:36px;padding:8px;border:0;background:transparent;color:var(--muted);border-radius:8px}
 .user-message-actions button:hover{background:var(--hover)}.user-message-actions svg{width:20px;height:20px;stroke:currentColor;stroke-width:1.6;fill:none}
+
+/* Sidebar advertising shares the navigation's spacing and scale. */
+#sidebar .sidebar-ad{padding:16px;border-radius:18px;margin-bottom:16px}
+#sidebar .sidebar-ad-label{font-size:10px;letter-spacing:1px;margin-bottom:10px}
+#sidebar .sidebar-ad-art{height:auto;aspect-ratio:2/1;border-radius:12px;margin-bottom:12px}
+#sidebar .sidebar-ad-art svg{width:64px;opacity:.85}
+#sidebar .sidebar-ad strong{display:block;font-size:15px;line-height:1.4}
+#sidebar .sidebar-ad p{font-size:13px;line-height:1.5;margin:6px 0 12px}
+#sidebar .sidebar-ad-available{display:block;font-size:12px}
+@media(max-height:750px){
+ #sidebar .sidebar-ad{padding:12px;margin-bottom:10px}
+ #sidebar .sidebar-ad-art{aspect-ratio:3/1;margin-bottom:8px}
+ #sidebar .sidebar-ad p{display:none}
+ #sidebar .sidebar-ad-available{margin-top:6px}
+}
