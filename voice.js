@@ -149,6 +149,12 @@ function storeVoiceRecords() {
   if (!voiceChat || (authUser?.id || null) !== voiceOwner || !custom.includes(voiceChat)) return;
   voiceChat.messages = [...voiceBase, ...voiceRecords.filter(r => r.text).map(r => [r.role, r.text])];
   voiceChat.attachments=voiceChat.attachments||{};voiceRecords.filter(r=>r.text).forEach((r,i)=>{if(r.files)voiceChat.attachments[voiceBase.length+i]=r.files});
+  if (/^(Conversación de voz|Voice conversation)$/.test(voiceChat.title)) {
+    const topic=voiceChat.messages.find(([role,text])=>role==='user'&&text.trim().split(/\s+/).length>=4&&!/^(hola|hello|buenos días|buenas tardes|hi)[!.?\s]*$/i.test(text.trim()));
+    if(topic){voiceChat.title=topic[1].replace(/\s+/g,' ').trim().slice(0,60);const chat=voiceChat,owner=voiceOwner,original=chat.title;
+      window.NunaMemory?.request('/api/memory',{method:'POST',body:JSON.stringify({action:'title',text:chat.messages.map(m=>m[1]).join('\n').slice(0,4000)})},owner).then(result=>{if(authUser?.id===owner&&custom.includes(chat)&&chat.title===original&&result.title){chat.title=result.title;save();render()}}).catch(()=>{});
+    }
+  }
   save(); render(); if (active === voiceChat.id) scrollBottom();
   const visibleRecords=voiceRecords.filter(r=>r.text);const last=visibleRecords.at(-1);if(last?.role==='assistant'&&last.complete)window.NunaPDF?.onReply(voiceChat,voiceChat.messages.length-1,voiceOwner);
 }
@@ -173,14 +179,14 @@ async function answerVoiceClock(call){
  connection.send({type:'response.create'});
 }
 function receiveVoiceEvent(event) {
-  if(event.type==='response.done'&&event.response?.status==='completed'){for(const item of event.response.output||[]){if(item.type==='function_call'){if(item.name==='create_image')answerVoiceImage(item);else answerVoiceClock(item);}else{const record=voiceRecords.find(r=>r.id===item.id);if(record)record.complete=true}}storeVoiceRecords();}
+  if(event.type==='response.done'&&event.response?.status==='completed'){for(const item of event.response.output||[]){if(item.type==='function_call'){if(item.name==='create_image')answerVoiceImage(item);else if(item.name==='read_my_documents')answerVoiceDocuments(item);else answerVoiceClock(item);}else{const record=voiceRecords.find(r=>r.id===item.id);if(record)record.complete=true}}storeVoiceRecords();}
 
   if (event.type === 'input_audio_buffer.committed') {
     if (!voiceRecords.some(r => r.id === event.item_id)) voiceRecords.push({id:event.item_id,role:'user',text:''});
   } else if (event.type === 'conversation.item.input_audio_transcription.completed') {
     let r = voiceRecords.find(r => r.id === event.item_id);
     if (!r) { r = {id:event.item_id,role:'user',text:''}; voiceRecords.push(r); }
-    r.text = String(event.transcript || '').trim(); storeVoiceRecords();
+    r.text = String(event.transcript || '').trim(); window.NunaMemory?.learn(r.text,voiceOwner); storeVoiceRecords();
   } else if (event.type === 'response.output_audio_transcript.delta') {
     let r = voiceRecords.find(r => r.id === event.item_id);
     if (!r) { r = {id:event.item_id,role:'assistant',text:''}; voiceRecords.push(r); }
@@ -350,3 +356,11 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!voiceDialog.hidden
 window.addEventListener('load',()=>{const textSend=send;send=function(value){if(voiceConnection || voiceStarting){voiceSetStatus('Finaliza la voz antes de enviar un mensaje escrito.', 'End voice before sending a typed message.');return;}return textSend(value);};});
 new MutationObserver(renderVoice).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
 renderVoice();
+
+async function answerVoiceDocuments(call){
+ if(voiceClockCalls.has(call.call_id)||!voiceConnection?.send)return;voiceClockCalls.add(call.call_id);
+ const connection=voiceConnection,generation=voiceGeneration,owner=voiceOwner;let output;
+ try{output=await window.NunaMemory.request('/api/documents',{method:'POST',body:'{}'})}catch{output={error:'Documents unavailable. Do not invent their content.'}}
+ if(connection!==voiceConnection||generation!==voiceGeneration||authUser?.id!==owner)return;
+ connection.send({type:'conversation.item.create',item:{type:'function_call_output',call_id:call.call_id,output:JSON.stringify(output)}});connection.send({type:'response.create'});
+}

@@ -1,0 +1,1 @@
+{"name":"nuna-ai","private":true,"version":"1.0.0","engines":{"node":"22.x"},"dependencies":{"pdf-parse":"2.4.5"}}

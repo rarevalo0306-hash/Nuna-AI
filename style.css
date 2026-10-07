@@ -357,3 +357,5 @@ body[data-nuna-voice="listening"] #welcome .welcome-mark{filter:drop-shadow(0 0 
 body[data-nuna-voice="thinking"] #welcome .welcome-mark svg{animation:nuna-halo-breathe 2s ease-in-out infinite}
 body[data-nuna-voice="speaking"] #welcome .welcome-mark svg{animation:nuna-core-float 1.4s ease-in-out infinite}
 @media(prefers-reduced-motion:reduce){.voice-actions[data-state] .voice-wave,.voice-actions[data-state] .voice-wave::before,body[data-nuna-voice] #welcome .welcome-mark svg{animation:none}}
+
+.memory-form{padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important}.memory-form textarea{min-height:90px;max-height:240px;overflow:auto;padding:12px;border:1px solid var(--border);border-radius:12px}.memory-form input[type=checkbox]{width:20px;height:20px}.memory-form>button,.memory-notice{padding:10px 14px;border:1px solid var(--border);border-radius:12px;background:var(--card);margin:8px 8px 8px 0}.memory-form p{font-size:13px;line-height:1.6;color:var(--muted)}
