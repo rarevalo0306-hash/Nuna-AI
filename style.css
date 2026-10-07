@@ -195,3 +195,13 @@ html,body{max-width:100%;overflow-x:hidden}main,#scroll-area{min-height:0}
  #settings-dialog .mobile-detail .settings-tabs{display:none}
  #settings-dialog .mobile-detail .settings-mobile-back{display:block;flex-shrink:0;min-height:48px;border:0;border-bottom:1px solid var(--border);background:var(--side);color:var(--accent);padding:12px 16px;text-align:left;font-size:14px}
 }
+
+/* Mobile advertising is part of the welcome suggestions, never an overlay. */
+.mobile-suggestion-ad{display:none}
+@media(max-width:760px){
+ .mobile-suggestion-ad{display:flex;flex-direction:column;gap:5px;grid-column:1 / -1;min-width:0;padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:var(--card);text-align:left;overflow-wrap:anywhere}
+ .mobile-suggestion-ad small{display:block!important;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+ .mobile-suggestion-ad strong{font-size:14px}
+ .mobile-suggestion-ad span{font-size:12px;color:var(--muted);line-height:1.4}
+ .mobile-suggestion-ad .mobile-ad-available{color:var(--accent);font-size:11px}
+}
