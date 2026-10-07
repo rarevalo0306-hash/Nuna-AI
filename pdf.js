@@ -30,9 +30,10 @@
      const title=typeof chat.title==='string'?chat.title:chat.title[lang];
      const cached=prepared.get(key);
      const file=cached?.source===entries[index][1]?cached.file:new File([documentFromText(entries[index][1],title||'NUNA',window.jspdf.jsPDF).output('arraybuffer')],'NUNA-documento.pdf',{type:'application/pdf'});
-     const item=cached?.source===entries[index][1]?cached:{file,source:entries[index][1],open:true,saved:false};prepared.set(key,item);
+     const item=cached?.source===entries[index][1]?cached:{file,source:entries[index][1],open:false,saved:false};prepared.set(key,item);
      if(appleMobile||automatic||restoring){
       const nativeSave=document.createElement('button');nativeSave.type='button';nativeSave.textContent=es?'Guardar en dispositivo':'Save to device';
+      const card=document.createElement('button');card.type='button';card.textContent='▤  '+(title||'NUNA')+'.pdf';card.style.cssText='display:block;width:100%;max-width:440px;text-align:left;padding:18px;margin:14px 0;border:1px solid var(--border);border-radius:14px;background:var(--panel);color:inherit;font:inherit;cursor:pointer';card.setAttribute('aria-label',es?'Abrir vista previa del PDF':'Open PDF preview');article.append(card);
       const note=document.createElement('span');note.setAttribute('role','status');note.textContent=es?'Pulsa guardar y elige Guardar en Archivos.':'Tap save and choose Save to Files.';
       nativeSave.onclick=async()=>{
        if(owner!==(authUser?.id||undefined)){note.textContent=es?'La cuenta cambió. Crea el PDF de nuevo.':'Account changed. Create the PDF again.';return}
@@ -51,7 +52,7 @@
       toolbar.append(close,separate);const frame=document.createElement('div');frame.setAttribute('aria-label',es?'Vista previa del documento':'Document preview');frame.style.cssText='display:block;width:100%;box-sizing:border-box;max-height:60vh;overflow:auto;background:white;color:#18232b;padding:24px;white-space:pre-wrap;overflow-wrap:anywhere;font:16px/1.6 Arial,sans-serif';const previewTitle=document.createElement('h3');previewTitle.textContent=title||'NUNA';const previewBody=document.createElement('div');previewBody.textContent=entries[index][1];frame.append(previewTitle,previewBody);
       viewer.append(toolbar,frame);article.append(viewer);
       preview.onclick=event=>{event.preventDefault();viewer.hidden=!viewer.hidden;item.open=!viewer.hidden;if(!viewer.hidden){preview.textContent=es?'Ocultar PDF':'Hide PDF'}else preview.textContent=es?'Ver PDF':'View PDF'};
-      actions.append(nativeSave,preview,note);if(item.open)preview.textContent=es?'Ocultar PDF':'Hide PDF';if(!restoring)viewer.scrollIntoView?.({block:'nearest',behavior:'smooth'});button.textContent=es?'PDF listo':'PDF ready';
+      card.onclick=()=>preview.onclick({preventDefault(){}});card.ondblclick=()=>{viewer.hidden=false;item.open=true;preview.textContent=es?'Ocultar PDF':'Hide PDF'};actions.append(nativeSave,preview,note);if(item.open)preview.textContent=es?'Ocultar PDF':'Hide PDF';if(!restoring&&item.open)viewer.scrollIntoView?.({block:'nearest',behavior:'smooth'});button.textContent=es?'PDF listo':'PDF ready';
       const cleanup=new MutationObserver(()=>{if(!preview.isConnected){URL.revokeObjectURL(previewUrl);cleanup.disconnect()}});cleanup.observe(document.getElementById('messages'),{childList:true,subtree:true});
      }else{if(!restoring)downloadFile(file);button.textContent=es?'Descarga solicitada':'Download requested'}
      if(item.saved){button.textContent=es?'PDF guardado en Documentos':'PDF saved in Documents'}
