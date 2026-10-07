@@ -1,6 +1,6 @@
 (function(){
  const field=document.createElement('label');field.className='composer-model-picker';
- const label=document.createElement('span');const select=document.createElement('select');select.id='composer-model';field.append(label,select);document.querySelector('.composer-controls').before(field);
+ const label=document.createElement('span');const select=document.createElement('select');select.id='composer-model';field.append(label,select);document.getElementById('attach-open').after(field);
  const durationField=document.createElement('label');durationField.className='composer-model-picker composer-video-duration';const durationLabel=document.createElement('span');const durationSelect=document.createElement('select');durationSelect.append(new Option('10 s','10'),new Option('15 s','15'));durationField.append(durationLabel,durationSelect);field.after(durationField);
  let selectionOwner;
  function remember(){if(!authUser?.id)return;try{localStorage.setItem('nuna-composer-'+authUser.id,JSON.stringify({model:select.value,duration:Number(durationSelect.value)}))}catch{}}
