@@ -209,3 +209,6 @@ html,body{max-width:100%;overflow-x:hidden}main,#scroll-area{min-height:0}
 form[data-extension] input,form[data-extension] select,form[data-extension] button{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px;min-height:44px;box-sizing:border-box}
 form[data-extension] input{flex-basis:240px!important}form[data-extension] small{color:var(--muted)}
 @media(max-width:600px){form[data-extension] input{flex-basis:100%!important}form[data-extension] select{max-width:100%;font-size:16px}}
+.composer-model-picker{display:flex;align-items:center;gap:8px;margin:4px 4px 10px;min-width:0;font-size:13px;color:var(--muted,#9bb5bd)}
+.composer-model-picker select{max-width:100%;min-width:0;width:auto;border:1px solid #294d58;border-radius:12px;background:#102b35;color:#e7f5f7;padding:8px 28px 8px 10px;font-size:16px;line-height:1.3}
+@media(max-width:600px){.composer-model-picker{margin-bottom:6px}.composer-model-picker select{max-width:calc(100% - 65px)}}
