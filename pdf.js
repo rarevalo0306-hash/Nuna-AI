@@ -41,9 +41,9 @@
       const toolbar=document.createElement('div');toolbar.style.cssText='display:flex;gap:12px;align-items:center;padding:12px;flex-wrap:wrap';
       const close=document.createElement('button');close.type='button';close.textContent=es?'Cerrar vista previa':'Close preview';close.onclick=()=>{viewer.hidden=true;preview.textContent=es?'Ver PDF':'View PDF'};
       const separate=document.createElement('a');separate.href=previewUrl;separate.target='_blank';separate.rel='noopener noreferrer';separate.textContent=es?'Abrir en otra pestaña':'Open in another tab';
-      toolbar.append(close,separate);const frame=document.createElement('iframe');frame.title=es?'Vista previa del PDF':'PDF preview';frame.style.cssText='display:block;width:100%;height:60vh;min-height:300px;max-height:650px;border:0;background:white';
+      toolbar.append(close,separate);const frame=document.createElement('div');frame.setAttribute('aria-label',es?'Vista previa del documento':'Document preview');frame.style.cssText='display:block;width:100%;box-sizing:border-box;max-height:60vh;overflow:auto;background:white;color:#18232b;padding:24px;white-space:pre-wrap;overflow-wrap:anywhere;font:16px/1.6 Arial,sans-serif';const previewTitle=document.createElement('h3');previewTitle.textContent=title||'NUNA';const previewBody=document.createElement('div');previewBody.textContent=entries[index][1];frame.append(previewTitle,previewBody);
       viewer.append(toolbar,frame);article.append(viewer);
-      preview.onclick=event=>{event.preventDefault();viewer.hidden=!viewer.hidden;if(!viewer.hidden){frame.src=previewUrl;preview.textContent=es?'Ocultar PDF':'Hide PDF'}else preview.textContent=es?'Ver PDF':'View PDF'};
+      preview.onclick=event=>{event.preventDefault();viewer.hidden=!viewer.hidden;if(!viewer.hidden){preview.textContent=es?'Ocultar PDF':'Hide PDF'}else preview.textContent=es?'Ver PDF':'View PDF'};
       actions.append(nativeSave,preview,note);button.textContent=es?'PDF listo':'PDF ready';
       const cleanup=new MutationObserver(()=>{if(!preview.isConnected){URL.revokeObjectURL(previewUrl);cleanup.disconnect()}});cleanup.observe(document.getElementById('messages'),{childList:true,subtree:true});
      }else{downloadFile(file);button.textContent=es?'Descarga solicitada':'Download requested'}
