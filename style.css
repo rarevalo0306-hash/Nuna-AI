@@ -214,3 +214,12 @@ form[data-extension] input{flex-basis:240px!important}form[data-extension] small
 @media(max-width:600px){.composer-model-picker{margin-bottom:6px}.composer-model-picker select{max-width:calc(100% - 65px)}}
 
 .composer-video-duration[hidden]{display:none}
+
+/* Image attachments stay inside the composer at every screen size. */
+#composer #attachment-preview{margin:0 0 12px;padding:2px 0 0;max-height:160px;gap:10px}
+#attachment-preview .photo-chip{position:relative;display:block;width:108px;height:108px;flex:0 0 108px;padding:0;border-radius:14px;overflow:visible;background:var(--card)}
+#attachment-preview .photo-chip img{display:block;width:100%;height:100%;border-radius:13px;object-fit:cover}
+#attachment-preview .photo-chip>span{display:none}
+#attachment-preview .photo-chip>button{position:absolute;right:-5px;top:-5px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid var(--border);background:var(--side);color:var(--text);font-size:20px;box-shadow:0 2px 8px #0003;padding:0}
+#attachment-preview .file-chip>button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:760px){#attachment-preview .photo-chip{width:88px;height:88px;flex-basis:88px}#attachment-preview .photo-chip>button{width:32px;height:32px}}
