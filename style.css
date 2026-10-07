@@ -452,3 +452,28 @@ body:not(.dark) .brand svg{filter:drop-shadow(0 2px 3px #00796522)}
 body:not(.dark) #welcome .welcome-mark::before{opacity:.45}
 body:not(.dark) #welcome .welcome-mark .nuna-tech-grid{border-color:#86b8a1;box-shadow:inset 0 3px 10px #fff,inset -7px -10px 22px #618d7433,0 12px 24px #24563c18}
 @media(max-width:760px){body:not(.dark) #welcome{padding-top:20px}body:not(.dark) #welcome h1{letter-spacing:-.8px}body:not(.dark) .suggestion{padding:15px 12px 15px 49px;min-height:96px;border-radius:15px}body:not(.dark) .suggestion .symbol{left:12px;top:17px;width:28px;height:28px;border-radius:9px;font-size:16px}body:not(.dark) .suggestion strong{font-size:12px}body:not(.dark) .suggestion small{font-size:11px}body:not(.dark) #suggestions{gap:10px}body:not(.dark) #composer{padding:14px 12px 10px;border-radius:20px}}
+
+/* Tech daylight: cool ceramic surfaces, cyan circuitry and holographic core. */
+body:not(.dark){--bg:#f8fbff;--side:#edf2f8;--text:#152d46;--muted:#536981;--accent:#007caa;--border:#cddbea;--hover:#e0edf8;--bubble:#e4f0fa}
+body:not(.dark) main{background:radial-gradient(ellipse 500px 370px at 50% 22%,#4ecce519,transparent 80%),radial-gradient(ellipse 650px 400px at 80% 70%,#6f91fb0c,transparent 90%),#f8fbff}
+body:not(.dark) #sidebar{background:linear-gradient(180deg,#eef4fa,#eaf0f7);border-right-color:#c7d6e5}
+body:not(.dark) #welcome h1{color:#15324d}
+body:not(.dark) #welcome .eyebrow{color:#087ca0;letter-spacing:3px}
+body:not(.dark) #welcome>p{color:#58718a}
+body:not(.dark) .suggestion{background:linear-gradient(125deg,#fff,#f4f9ff);border-color:#cbdced;box-shadow:0 4px 16px #244d7809,inset 0 1px #fff}
+body:not(.dark) .suggestion::after{content:'';position:absolute;right:12px;top:12px;width:10px;height:10px;border-top:1px solid #22aaca88;border-right:1px solid #22aaca88;border-radius:0 3px 0 0}
+body:not(.dark) .suggestion .symbol{background:linear-gradient(135deg,#dff7ff,#e6ecff);color:#007fa8;box-shadow:inset 0 0 0 1px #50afd326}
+body:not(.dark) .suggestion strong{color:#203d59}
+body:not(.dark) .suggestion small{color:#577089}
+body:not(.dark) .suggestion:hover{border-color:#51accd;box-shadow:0 8px 24px #2486b719}
+body:not(.dark) #composer{border-color:#afcbe2;box-shadow:0 12px 32px #285d8c12,inset 0 1px #fff}
+body:not(.dark) .composer-model-picker select{background:#eef5fc;border-color:#cadcea;color:#294e70}
+body:not(.dark) .new-chat{border-color:#c3d6e7;background:linear-gradient(120deg,#fff,#f6faff)}
+body:not(.dark) .history-label{color:#57738e}
+body:not(.dark) #welcome .welcome-mark{background:radial-gradient(circle,#41cbef22,transparent 71%);filter:drop-shadow(0 9px 18px #28799b35)}
+body:not(.dark) #welcome .welcome-mark .nuna-tech-grid{background:radial-gradient(ellipse at 30% 18%,#d2ffff66,transparent 45%),radial-gradient(ellipse at 78% 85%,#477bff55,transparent 65%),linear-gradient(145deg,#194e66,#091f3c);border-color:#43bdd8;box-shadow:inset 0 2px 8px #c3ffff44,inset -5px -9px 22px #07152b88,0 0 24px #24bde633}
+body:not(.dark) #welcome .welcome-mark svg{stroke:#bbffff;filter:drop-shadow(0 0 6px #39e3ef99)}
+body:not(.dark) #welcome .welcome-mark::before{opacity:.8;background:repeating-conic-gradient(from 12deg,#199cc0 0deg 11deg,transparent 11deg 18deg);filter:drop-shadow(0 0 2px #4fbcdc55)}
+body:not(.dark) #welcome .welcome-mark::after{border-color:#418acb99;border-right-color:#16baca}
+body:not(.dark) #welcome .welcome-mark .nuna-tech-depth{border-color:#14a6bbaa;border-left-color:transparent;border-bottom-color:#527ee9bb;box-shadow:0 0 8px #2bbdce22}
+body:not(.dark) #welcome .welcome-mark .nuna-tech-orbit::before{background:#087fa4;box-shadow:0 0 8px #00d9ff88}
