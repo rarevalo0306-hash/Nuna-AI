@@ -1,0 +1,7 @@
+// Real end-to-end handler test. Secrets stay in environment and are never reported.
+const assert=require('node:assert/strict'),fs=require('node:fs'),{EventEmitter}=require('node:events');
+const handler=require('../api/chat');
+async function invoke(headers,body){const req=new EventEmitter();Object.assign(req,{method:'POST',headers,body});const res=new EventEmitter();res.setHeader=()=>{};res.status=n=>(res.statusCode=n,res);res.json=data=>(res.writableEnded=true,res.data=data,res);await handler(req,res);return res;}
+(async()=>{const r=await invoke({'x-nuna-access-code':process.env.NUNA_ACCESS_CODE,'idempotency-key':'real-web-'+require('node:crypto').randomUUID()},{provider:'local',messages:[{role:'user',content:'Escribe una bienvenida breve en español a NUNA.'}]});assert.equal(r.statusCode,200);assert.ok(r.data.text);assert.equal(r.data.execution,'local');assert.equal(r.data.paid_fallback,false);
+const unauthorized=await invoke({'x-nuna-access-code':'invalid'},{provider:'local',messages:[{role:'user',content:'Hola'}]});assert.equal(unauthorized.statusCode,403);
+fs.writeFileSync(process.env.TEST_LOCAL_REPORT,JSON.stringify({http_status:r.statusCode,reply:r.data,unauthorized_status:unauthorized.statusCode},null,2));console.log('NUNA web → HTTPS → NUNA Local → MLX: respuesta real recibida; acceso inválido rechazado.');})().catch(()=>{console.error('Falló la prueba real del controlador web local.');process.exitCode=1;});

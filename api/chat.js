@@ -1,4 +1,6 @@
 const {localQwenReply}=require('./_local-qwen');
+const localChat=require('./local-chat');
+const {config:localConfig,accountFor:localAccount}=require('./_nuna-local');
 const {memoryInstructions,normalizeMemory}=require('./_memory');
 const {readDocuments}=require('./_documents');
 const {identityInstructions,accountGreetingInstructions}=require('./_identity');
@@ -60,6 +62,7 @@ const sessionRejected = (status, data) => status === 401 && /^PGRST30\d$/.test(S
 const notSent = error => ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT'].includes(error?.cause?.code);
 
 module.exports = async function handler(req, res) {
+  if (req.body?.provider === 'local') return localChat(req,res);
   res.setHeader('Cache-Control', 'no-store');
   // Log only the error code and provider so failures can be diagnosed in Vercel logs without exposing secrets or message content.
   const fail = (status, error, provider, extra = {}) => {
@@ -95,7 +98,8 @@ module.exports = async function handler(req, res) {
       if (status !== 200 || !Number.isInteger(data)) return fail(503, 'accounts_unavailable');
       usage = admin ? { used: data, limit: null, admin: true } : { used: data, limit: dailyLimit() };
     }
-    return res.status(200).json({ providers: Object.fromEntries(PROVIDERS.map(p => [p, { key: Boolean(config.key[p]), model: Boolean(config.model[p]) }])), usage });
+    const localEnabled=Boolean(localConfig())&&Boolean(await localAccount(req));
+    return res.status(200).json({ providers: {...Object.fromEntries(PROVIDERS.map(p => [p, { key: Boolean(config.key[p]), model: Boolean(config.model[p]) }])),local:{key:localEnabled,model:localEnabled}}, usage });
   }
   let body = req.body;
   if (typeof body === 'string') {

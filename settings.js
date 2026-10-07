@@ -18,6 +18,7 @@ const providerModels=[
 {id:'gemini',name:'Gemini',description:{es:'Google · versión por configurar',en:'Google · version to configure'}},
 {id:'openai',name:'OpenAI',description:{es:'Familia GPT · versión por configurar',en:'GPT family · version to configure'}},
 {id:'anthropic',name:'Claude · Anthropic',description:{es:'Anthropic · versión por configurar',en:'Anthropic · version to configure'}},
+{id:'local',name:'NUNA Local',description:{es:'En tu Mac · sin API de pago',en:'On your Mac · no paid API'}},
 {id:'qwen',name:'Qwen',description:{es:'Alibaba · versión por configurar',en:'Alibaba · version to configure'}},
 {id:'grok',name:'Grok',description:{es:'xAI · versión por configurar',en:'xAI · version to configure'}},
 {id:'deepseek',name:'DeepSeek',description:{es:'DeepSeek · versión por configurar',en:'DeepSeek · version to configure'}}];
