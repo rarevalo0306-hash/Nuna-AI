@@ -413,3 +413,18 @@ body:not(.dark) #welcome .welcome-mark::after{border-color:#397b6288;border-righ
 body:not(.dark) #welcome .welcome-mark svg{stroke:#005e47;stroke-width:1.8;filter:none}
 body:not(.dark) #welcome .welcome-mark .nuna-tech-depth{border-color:#237d5cbb;border-left-color:transparent;border-bottom-color:#4e8093aa}
 body:not(.dark) #welcome .welcome-mark .nuna-tech-scan{opacity:.16}
+
+/* Neutral daylight surfaces with restrained emerald details. */
+body:not(.dark){--bg:#fafafa;--side:#f0f2f2;--card:#fff;--text:#192c2b;--muted:#556563;--border:#d5dedd;--hover:#e5edeb;--accent:#007965}
+body:not(.dark) main{background:radial-gradient(ellipse 420px 300px at 50% 25%,#eaf4f144,transparent 100%),#fafafa}
+body:not(.dark) #sidebar{background:#f0f2f2;border-right:1px solid #d4dddb}
+body:not(.dark) .suggestion{background:#fff;border-color:#d9e2df;box-shadow:0 2px 4px #18332f04,0 6px 18px #18332f05;transition:border-color .2s,box-shadow .2s,transform .2s}
+body:not(.dark) .suggestion:hover{background:#fff;border-color:#70a797;box-shadow:0 8px 24px #18332f10;transform:translateY(-2px)}
+body:not(.dark) .suggestion .symbol{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;background:#edf6f2;color:#00745e;font-size:18px;margin-bottom:12px}
+body:not(.dark) .suggestion strong{font-size:14px;line-height:1.4}
+body:not(.dark) .suggestion small{line-height:1.6;color:#52635d}
+body:not(.dark) #welcome h1{font-weight:600;letter-spacing:-1px;color:#182d29}
+body:not(.dark) #composer{background:#fff;border-color:#c7d6cf;box-shadow:0 2px 4px #16332605,0 10px 26px #1633260b}
+body:not(.dark) .new-chat{background:#fff;border-color:#cfdbd5;box-shadow:0 2px 5px #14342505}
+body:not(.dark) #welcome .welcome-mark::before{opacity:.72;background:repeating-conic-gradient(from 12deg,#288e73 0deg 11deg,transparent 11deg 18deg)}
+@media(prefers-reduced-motion:reduce){body:not(.dark) .suggestion{transition:none}body:not(.dark) .suggestion:hover{transform:none}}
