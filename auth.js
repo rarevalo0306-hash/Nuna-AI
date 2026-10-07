@@ -25,15 +25,24 @@ function usageResetAt() {
 }
 function usageLine() {
   if (!authUsage) return ''
+  if (authUsage.admin) { const n = authUsage.used; return authText(`Cuenta de administrador: sin límite diario. Hoy has enviado ${n} ${n === 1 ? 'mensaje' : 'mensajes'}.`, `Administrator account: no daily limit. You have sent ${n} ${n === 1 ? 'message' : 'messages'} today.`) }
   const left = Math.max(authUsage.limit - authUsage.used, 0)
   const planText = authUsage.planName ? authText(`Plan ${authUsage.planName}. `, `${authUsage.planName} plan. `) : ''
   return planText + authText(`Has usado ${authUsage.used} de ${authUsage.limit} mensajes de hoy (te quedan ${left}). Se renuevan ${usageResetAt()}.`,
     `You have used ${authUsage.used} of today's ${authUsage.limit} messages (${left} left). They reset ${usageResetAt()}.`)
 }
+// Asks the server, which knows the account's plan and whether it is an administrator (no daily limit).
 async function refreshUsage() {
   if (!authClient || !authUser) return
-  const { data, error } = await authClient.rpc('ai_usage_today')
-  if (!error && Number.isInteger(data)) authUsage = { used: data, limit: authDailyLimit }
+  const userId = authUser.id
+  const token = await authAccessToken()
+  if (!token) return
+  try {
+    const response = await fetch('/api/chat', { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(15000) })
+    const data = await response.json()
+    // A reply that arrives after signing out (or into another account) belongs to the previous person: drop it.
+    if (response.ok && authUser?.id === userId) noteUsage(data)
+  } catch {}
 }
 async function authAccessToken() {
   if (!authClient) return ''
