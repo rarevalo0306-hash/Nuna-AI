@@ -327,3 +327,20 @@ form[data-extension] input{flex-basis:240px!important}form[data-extension] small
 @keyframes nuna-core-pulse{0%{transform:scale(.85);opacity:0}20%{opacity:.55}85%,100%{transform:scale(1.32);opacity:0}}
 @media(max-width:760px){#welcome .welcome-mark{width:128px;height:128px;margin-bottom:18px}#welcome .welcome-mark svg{width:62px}#welcome .welcome-mark::after{inset:21px}.nuna-tech-grid,.nuna-tech-scan{inset:25px}.nuna-tech-pulse{inset:22px}}
 @media(prefers-reduced-motion:reduce){.nuna-tech-depth,.nuna-tech-pulse{animation:none}.nuna-tech-pulse{opacity:.2}}
+
+/* Polished glass core: a clear silhouette with restrained orbital detail. */
+#welcome .welcome-mark{width:204px;height:204px;background:radial-gradient(ellipse at 35% 24%,#b0fff321 0%,transparent 34%),radial-gradient(circle at 50% 50%,#0d3c4999 0%,#09233099 45%,transparent 65%);filter:drop-shadow(0 16px 24px #000c1833)}
+#welcome .welcome-mark .nuna-tech-grid{inset:36px;z-index:0;border-radius:50%;opacity:1;mask:none;background:radial-gradient(ellipse at 32% 18%,#bafff22b 0%,transparent 40%),radial-gradient(ellipse at 78% 85%,#388dff20 0%,transparent 55%),linear-gradient(145deg,#10344399,#041722cc);border:1px solid #7bffec38;box-shadow:inset 0 2px 3px #d7fff21c,inset -4px -7px 22px #00111c99,0 0 28px #23d8bd14}
+#welcome .welcome-mark .nuna-tech-grid::before{content:'';position:absolute;inset:7px;border-radius:50%;border-top:1px solid #affff04d;transform:rotate(-28deg)}
+#welcome .welcome-mark .nuna-tech-grid::after{content:'';position:absolute;width:4px;height:4px;border-radius:50%;right:15%;top:24%;background:#b5ffff;box-shadow:0 0 9px #23d8bd,0 0 20px #23d8bd55}
+#welcome .welcome-mark svg{position:relative;z-index:2;width:84px;stroke:#b7fff0;stroke-width:1.5;filter:drop-shadow(0 0 4px #24d9bb88);animation:nuna-core-float 8s ease-in-out infinite}
+#welcome .welcome-mark::before{inset:15px;opacity:.7;animation-duration:52s}
+#welcome .welcome-mark::after{inset:28px;opacity:.55;animation-duration:32s;border-left-color:#63aaff77;border-right-color:#90fff0}
+#welcome .welcome-mark .nuna-tech-depth{inset:3px;z-index:3;border-color:#71ffe766;border-bottom-color:#64baff88;border-left-color:transparent;box-shadow:0 2px 7px #23d8bd18;animation-duration:20s}
+#welcome .welcome-mark .nuna-tech-depth::after{opacity:.4}
+#welcome .welcome-mark .nuna-tech-orbit{opacity:.6;border-style:solid;border-color:#23d8bd10;inset:0}
+#welcome .welcome-mark .nuna-tech-pulse{opacity:.2;animation-duration:9s}
+#welcome .welcome-mark .nuna-tech-scan{inset:38px;z-index:1;opacity:.3}
+@keyframes nuna-core-float{0%,100%{transform:translateY(0);opacity:1}50%{transform:translateY(-3px);opacity:.85}}
+@media(max-width:760px){#welcome .welcome-mark{width:132px;height:132px}#welcome .welcome-mark .nuna-tech-grid{inset:23px}#welcome .welcome-mark svg{width:55px}#welcome .welcome-mark::before{inset:8px}#welcome .welcome-mark::after{inset:18px}#welcome .welcome-mark .nuna-tech-scan{inset:25px}}
+@media(prefers-reduced-motion:reduce){#welcome .welcome-mark svg{animation:none}}
