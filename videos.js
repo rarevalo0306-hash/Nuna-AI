@@ -28,6 +28,6 @@
  }catch(e){if(authUser?.id===owner)openAIStatus.textContent=e.message}finally{openAIBusy=false}
  };
  const priorNew=newChat;newChat=function(){source=null;waiting=false;priorNew()};['new-chat','new-top'].forEach(id=>document.getElementById(id).onclick=newChat);
- window.NunaVideos={begin(){waiting=true;source=null;openAIStatus.textContent=lang==='es'?'Adjunta una imagen o usa la última foto del chat y describe cómo quieres animarla.':'Attach an image or use the last chat photo and describe the animation.';document.getElementById('prompt').focus()}};
+ window.NunaVideos={begin(){waiting=true;source=null;attachmentMenu.hidden=true;attachmentButton.setAttribute('aria-expanded','false');attachmentInput.removeAttribute('capture');attachmentInput.multiple=false;attachmentInput.accept='image/jpeg,image/png,image/webp';attachmentInput.click();openAIStatus.textContent=lang==='es'?'Adjunta una imagen o usa la última foto del chat y describe cómo quieres animarla.':'Attach an image or use the last chat photo and describe the animation.';document.getElementById('prompt').focus()}};
  const priorRender=render;render=function(){priorRender();const owner=authUser?.id;if(owner)for(const chat of custom){try{chat.videoJob=chat.videoJob||localStorage.getItem('nuna-video-'+owner+'-'+chat.id)}catch{}if(chat.videoJob)resume(chat,owner)}};render();
 })();
