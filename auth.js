@@ -374,8 +374,9 @@ render = function () { authUiRender(); updateAuthUI() }
 
 // ---- Sync between this page and the account ----
 const chatTitle = c => wellFormed((typeof c.title === 'string' ? c.title : c.title?.[lang] || '').trim()).slice(0, 200).trim() || 'Chat'
-const chatRecord = c => JSON.stringify([chatTitle(c), c.project || null, c.messages])
-const chatMessages = c => c.messages.map(m => Array.isArray(m) ? m.map(x => typeof x === 'string' ? wellFormed(x) : x) : m)
+function chatAttachments(messages){const files={};messages.forEach((m,i)=>{if(Array.isArray(m?.[2]?.files))files[i]=m[2].files.filter(f=>f&&typeof f.id==='string'&&f.provider==='r2').map(f=>({id:f.id,provider:'r2',name:String(f.name||'archivo'),type:String(f.type||''),size:Number(f.size)||0}))});return files}
+const chatMessages = c => c.messages.map((m,i) => {if(!Array.isArray(m))return m;const entry=[wellFormed(String(m[0])),wellFormed(String(m[1]))];const files=c.attachments?.[i]||m[2]?.files;if(Array.isArray(files)&&files.length)entry.push({files:files.filter(f=>f&&typeof f.id==='string'&&f.provider==='r2').map(f=>({id:f.id,provider:'r2',name:wellFormed(String(f.name||'archivo')),type:String(f.type||''),size:Number(f.size)||0}))});return entry})
+const chatRecord = c => JSON.stringify([chatTitle(c), c.project || null, chatMessages(c)])
 // Deleted chat ids are kept (as tombstones) so another device does not bring them back; only the newest ones are kept.
 const pruneHidden = list => { const ids = [...new Set(list.filter(id => typeof id === 'string'))]; const ex = new Set(examples.map(e => e.id)); return [...ids.filter(id => ex.has(id)), ...ids.filter(id => !ex.has(id)).slice(-2000)] }
 function setSyncProblem(problem) {
@@ -530,12 +531,13 @@ async function loadAccountData() {
     // Kept from this page: chats the account does not have and this page never uploaded (guest chats, unsent new ones).
     const local = [...mine.values()].filter(c => !cloudIds.has(c.id) && !syncedChats.has(c.id) && !cloudHidden.has(c.id))
     const fromCloud = rows.filter(r => !cloudHidden.has(r.id)).map(r => {
-      const cloud = { title: r.title, messages: Array.isArray(r.messages) ? r.messages : [], project: r.project || undefined }
+      const cloud = { title: r.title, messages: Array.isArray(r.messages) ? r.messages : [], attachments:chatAttachments(Array.isArray(r.messages)?r.messages:[]), project: r.project || undefined }
       const chat = mine.get(r.id)
       if (!chat) return { id: r.id, ...cloud }
       if (syncedChats.has(r.id) && chatRecord(chat) !== syncedChats.get(r.id)) return chat
       chat.title = cloud.title
       chat.messages = cloud.messages
+      chat.attachments = cloud.attachments
       if (cloud.project) chat.project = cloud.project; else delete chat.project
       return chat
     })
