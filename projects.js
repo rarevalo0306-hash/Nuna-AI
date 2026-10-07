@@ -2,10 +2,21 @@ let projects=[],hiddenChats=[],assignments={},currentProject=null,currentSection
 try{projects=JSON.parse(localStorage.getItem('nuna-projects')||'[]');hiddenChats=JSON.parse(localStorage.getItem('nuna-hidden')||'[]');assignments=JSON.parse(localStorage.getItem('nuna-assignments')||'{}')}catch{}
 function persistProjects(){try{localStorage.setItem('nuna-projects',JSON.stringify(projects));localStorage.setItem('nuna-hidden',JSON.stringify(hiddenChats));localStorage.setItem('nuna-assignments',JSON.stringify(assignments))}catch{}}
 const projectSection=document.createElement('section');projectSection.className='project-section';projectSection.innerHTML='<div class="project-heading"><span id="projects-label"></span><button class="project-add" id="project-add">＋</button></div><div id="project-list"></div><div class="sidebar-tools" hidden><button id="select-chats"></button><button id="delete-selected" hidden></button></div><div class="project-toolbar" id="project-assignment"></div>';document.querySelector('.history-label').before(projectSection);
+const recentHeading=document.querySelector('.history-label');
+const recentOptions=document.createElement('details');recentOptions.className='recent-options';
+const recentSummary=document.createElement('summary');recentSummary.textContent='⋯';recentSummary.setAttribute('aria-label','Opciones de conversaciones recientes');
+const recentMenu=document.createElement('div');
+const selectRecent=document.createElement('button');selectRecent.type='button';
+const deleteRecent=document.createElement('button');deleteRecent.type='button';
+function recentChatIds(){return all().filter(c=>!hiddenChats.includes(c.id)&&!projects.some(p=>p.id===(assignments[c.id]??c.project))).map(c=>c.id)}
+selectRecent.onclick=()=>{selecting=true;selectedChats.clear();recentChatIds().forEach(id=>selectedChats.add(id));recentOptions.open=false;render()};
+deleteRecent.onclick=()=>{recentOptions.open=false;deleteChats(recentChatIds(),recentSummary)};
+recentMenu.append(selectRecent,deleteRecent);recentOptions.append(recentSummary,recentMenu);recentHeading.after(recentOptions);
+const recentStyle=document.createElement('style');recentStyle.textContent='.recent-options{position:relative;margin:-36px 16px 8px auto;width:44px}.recent-options summary{list-style:none;cursor:pointer;text-align:center;font-size:24px;min-height:44px}.recent-options summary::-webkit-details-marker{display:none}.recent-options>div{position:absolute;right:0;z-index:50;min-width:180px;padding:8px;background:var(--card);border:1px solid var(--border);border-radius:12px}.recent-options button{display:block;width:100%;text-align:left;min-height:44px;padding:10px}';document.head.append(recentStyle);
 const expandedProjects=new Set(),expandedSections=new Set();
 const projectChatContainers=new Map(),sectionChatContainers=new Map();
 function refreshProjects(){
- const es=lang==='es',add=document.getElementById('project-add');document.getElementById('projects-label').textContent=es?'PROYECTOS':'PROJECTS';add.setAttribute('aria-label',es?'Crear proyecto':'Create project');add.onclick=openProjectCreator;
+ selectRecent.textContent=lang==='es'?'Seleccionar todas':'Select all';deleteRecent.textContent=lang==='es'?'Borrar todas':'Delete all';const es=lang==='es',add=document.getElementById('project-add');document.getElementById('projects-label').textContent=es?'PROYECTOS':'PROJECTS';add.setAttribute('aria-label',es?'Crear proyecto':'Create project');add.onclick=openProjectCreator;
  const list=document.getElementById('project-list');list.replaceChildren();
  projectChatContainers.clear();sectionChatContainers.clear();
  const project=projects.find(p=>p.id===currentProject);if(!project)currentSection=null;
