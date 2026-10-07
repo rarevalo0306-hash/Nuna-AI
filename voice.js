@@ -92,7 +92,7 @@ document.head.append(voiceStyle);
 const voiceOpen = document.getElementById('voice-open');
 voiceOpen.setAttribute('aria-controls', voiceDialog.id);
 voiceOpen.setAttribute('aria-expanded', 'false');
-let voiceConnection = null, voiceStarting = false, voiceMuted = false, voiceSpeaking = false, voiceMessage = '';
+let voiceConnection = null, voiceStarting = false, voiceMuted = false, voiceSpeaking = false, voiceThinking = false, voiceMessage = '';
 let voiceChat = null, voiceOwner = null, voiceRecords = [], voiceBase = [], voiceTimers = [], voiceAbort = null, voiceGeneration = 0;
 const vText = (es, en) => lang === 'es' ? es : en;
 function renderVoice() {
@@ -109,6 +109,10 @@ function renderVoice() {
   voiceStart.hidden = running;
   voiceActions.hidden = !running && !voiceStarting;
   voiceOpen.hidden = running || voiceStarting;
+  const visualState = voiceStarting ? 'connecting' : !running ? 'idle' : voiceSpeaking ? 'speaking' : voiceMuted ? 'muted' : voiceThinking ? 'thinking' : 'listening';
+  document.body.dataset.nunaVoice = visualState;
+  voiceActions.dataset.state = visualState;
+  voiceWave.title = vText({idle:'Lista',connecting:'Conectando',speaking:'Hablando',muted:'Micrófono silenciado',thinking:'Preparando respuesta',listening:'Escuchando'}[visualState],visualState);
   voiceActions.classList.toggle('speaking', voiceSpeaking);
   voiceActions.classList.toggle('connecting', voiceStarting);
   voiceToolbar.hidden = running || voiceStarting;
@@ -125,7 +129,7 @@ function renderVoice() {
   voiceStatus.textContent = voiceMessage || vText('Lista para probar · micrófono apagado', 'Ready to test · microphone off');
   voiceNote.textContent = vText('Tu audio se procesa para responderte y las transcripciones se guardan en este chat. La voz es generada por IA. NUNA limita cada sesión a 5 minutos; el audio tiene costo.', 'Your audio is processed to respond and transcripts are saved in this chat. The voice is AI generated. NUNA limits each session to 5 minutes; audio has a cost.');
 }
-function voiceSetStatus(es, en) { voiceMessage = vText(es, en); renderVoice(); }
+function voiceSetStatus(es, en) { if (/Preparing reply|Creating your image/.test(en)) voiceThinking=true; else if (/Listening|speaking|muted|ended|failed|lost|could not/i.test(en)) voiceThinking=false; voiceMessage = vText(es, en); renderVoice(); }
 function voiceFailure(error) {
   const messages = {
     voice_network_timeout:['No se pudo establecer el audio. Prueba otra red Wi-Fi o los datos móviles y vuelve a conectar.','Audio could not connect. Try another Wi-Fi network or cellular data and reconnect.'],
