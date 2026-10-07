@@ -1,0 +1,33 @@
+// Real creation/editing; file access stays scoped to the signed-in account.
+(function(){
+ let mode=null;
+ const previousSend=send;
+ function imageRequest(text){const t=text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();return !/\bno\s+(?:crees|generes|hagas|quiero)\b/.test(t)&&(/(?:crea|genera|dibuja|haz|create|generate|draw|make).{0,35}(?:imagen|foto|dibujo|image|picture|photo)/.test(t)||/^(?:dibuja|draw)\b/.test(t))}
+ function chooseMode(edit){mode=edit?'edit':'create';attachmentMenu.hidden=true;attachmentButton.setAttribute('aria-expanded','false');openAIStatus.textContent=lang==='es'?(edit?'Adjunta una foto JPG, PNG o WebP y escribe qué quieres cambiar.':'Describe la imagen que quieres crear.'):(edit?'Attach a JPG, PNG or WebP photo and describe the changes.':'Describe the image you want to create.');if(edit)chooseAttachment('photo');document.getElementById('prompt').focus()}
+ const previousAttach=attachmentButton.onclick;attachmentButton.onclick=()=>{previousAttach();for(const [edit,label]of [[false,lang==='es'?'Crear imagen':'Create image'],[true,lang==='es'?'Editar foto':'Edit photo']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>chooseMode(edit);attachmentMenu.append(b)}};
+ const previousNew=newChat;newChat=function(){mode=null;previousNew()};['new-chat','new-top'].forEach(id=>document.getElementById(id).onclick=newChat);
+ send=async function(value){
+  const text=String(value||'').trim();if(!text||openAIBusy)return;
+  const photos=pendingAttachments.filter(f=>['image/jpeg','image/png','image/webp'].includes(f.type));
+  const editing=mode==='edit'||(photos.length&&/(edita|cambia|transforma|quita|elimina|agrega|retoca|edit|change|remove|add|replace)/i.test(text));
+  if(!mode&&!editing&&!imageRequest(text)){return previousSend(value)}
+  const es=lang==='es',owner=authUser?.id;if(!owner){openAIStatus.textContent=es?'Inicia sesión para crear o editar imágenes.':'Sign in to create or edit images.';openAuth('login');return}
+  if(!await waitForAccount()||authUser?.id!==owner||openAIBusy)return;
+  if(editing&&(photos.length!==1||pendingAttachments.length!==1||photos[0].provider!=='r2')){openAIStatus.textContent=es?'Adjunta una sola foto JPG, PNG o WebP para editar.':'Attach one JPG, PNG or WebP photo to edit.';return}
+  if(!editing&&pendingAttachments.length){openAIStatus.textContent=es?'Para crear una imagen nueva, quita los adjuntos o elige Editar foto.':'Remove attachments to create a new image, or choose Edit photo.';return}
+  let chat=custom.find(c=>c.id===active);if(!chat){chat={id:crypto.randomUUID(),title:Array.from(text).slice(0,45).join(''),messages:[],project:currentProject};custom.unshift(chat);active=chat.id;assignNewChatSection(chat)}
+  const inputs=[...pendingAttachments];const userIndex=chat.messages.length;chat.messages.push(['user',text]);if(inputs.length){chat.attachments=chat.attachments||{};chat.attachments[userIndex]=inputs}pendingAttachments=[];mode=null;document.getElementById('prompt').value='';openAIBusy=true;save();render();refreshAttachments();scrollBottom();openAIStatus.textContent=es?(editing?'Editando tu foto…':'Creando tu imagen…'):(editing?'Editing your photo…':'Creating your image…');
+  try{
+   const r=await fetch('/api/images',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await authAccessToken()},body:JSON.stringify({prompt:text,...(editing?{imageId:photos[0].id}:{})}),signal:AbortSignal.timeout(180000)});const data=await r.json().catch(()=>({}));
+   if(!r.ok)throw Error(data.error==='daily_limit'?(es?'Alcanzaste el límite diario.':'Daily limit reached.'):data.error==='image_declined'?(es?'No se puede generar esa imagen. Prueba otra descripción.':'That image cannot be generated. Try another description.'):es?'No se pudo generar la imagen. Inténtalo de nuevo.':'Could not generate the image. Please retry.');
+   if(authUser?.id!==owner||!custom.includes(chat))return;
+   const bytes=Uint8Array.from(atob(data.image),c=>c.charCodeAt(0));const file=new File([bytes],editing?'NUNA-foto-editada.jpg':'NUNA-imagen.jpg',{type:data.type});const saved=await NunaArtifacts.store(file);
+   if(authUser?.id!==owner||!custom.includes(chat))return;
+   const i=chat.messages.length;chat.messages.push(['assistant',es?(editing?'Aquí tienes tu foto editada.':'Aquí tienes tu imagen.'):(editing?'Here is your edited photo.':'Here is your image.')]);chat.attachments=chat.attachments||{};chat.attachments[i]=[{...saved,name:file.name,type:file.type,size:file.size}];save();openAIStatus.textContent=es?'Imagen guardada en Fotos.':'Image saved in Photos.';
+  }catch(error){if(authUser?.id===owner)openAIStatus.textContent=error.message}
+  finally{openAIBusy=false;if(authUser?.id===owner){render();refreshAttachments();if(active===chat.id)scrollBottom()}}
+ };
+ const previousFiles=renderChatAttachments;
+ renderChatAttachments=function(container,files){previousFiles(container,files);const owner=authUser?.id;for(const file of files){if(file.provider!=='r2'||!/^image\/(jpeg|png|webp)$/.test(file.type))continue;const img=document.createElement('img');img.alt=file.name;img.style.cssText='display:block;width:100%;max-width:512px;height:auto;border-radius:14px;margin-top:12px';container.append(img);accountStorageRequest('/files/'+encodeURIComponent(file.id),{},owner).then(r=>r.blob()).then(blob=>{if(authUser?.id!==owner||!img.isConnected)return;const url=URL.createObjectURL(blob);img.src=url;const observer=new MutationObserver(()=>{if(!img.isConnected){URL.revokeObjectURL(url);observer.disconnect()}});observer.observe(document.getElementById('messages'),{childList:true,subtree:true});const download=document.createElement('button');download.type='button';download.textContent='⇩';download.setAttribute('aria-label',lang==='es'?'Descargar imagen':'Download image');download.onclick=async()=>{if(authUser?.id!==owner)return;const f=new File([blob],file.name,{type:blob.type});if(navigator.canShare?.({files:[f]})){try{await navigator.share({files:[f]})}catch{}}else{const a=document.createElement('a');a.href=url;a.download=file.name;a.target='_blank';a.rel='noopener noreferrer';a.click()}};container.append(download)}).catch(()=>{img.alt=lang==='es'?'No se pudo cargar la foto.':'Could not load the photo.'})}};
+ render();
+})();
