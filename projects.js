@@ -75,7 +75,7 @@ function confirmChatDeletion(ids, anchor, options = {}) {
     const actions = document.createElement('div');
     const cancel = document.createElement('button'); cancel.type='button'; cancel.textContent=es?'Cancelar':'Cancel';
     const remove = document.createElement('button'); remove.type='button'; remove.className='confirm-remove'; remove.textContent=es?'Borrar':'Delete';
-    actions.append(cancel,remove); box.append(message,note,actions); document.body.append(box);
+    actions.append(cancel,remove); box.append(message,note,actions); (document.querySelector('dialog[open]')||document.body).append(box);
     const rect = anchor?.getBoundingClientRect() || {left:16,right:40,top:80,bottom:120};
     const width = box.getBoundingClientRect().width, height=box.getBoundingClientRect().height;
     box.style.left = Math.max(8,Math.min(rect.right+8,window.innerWidth-width-8))+'px';
