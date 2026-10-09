@@ -16,6 +16,8 @@ async function accountPlan(token) {
   if (status !== 200 || !row || !Number.isInteger(row.daily_messages)) return { error: 'accounts_unavailable' };
   return { plan: {
     id: row.plan, name: row.plan_name, dailyMessages: row.daily_messages, paidModels: row.paid_models === true,
+    // The Administrador plan has no restrictions, like an account in NUNA_ADMIN_EMAILS.
+    unlimited: row.plan === 'administrador',
     storageGb: row.storage_gb === null ? null : Number(row.storage_gb),
     daily: { image: whole(row.daily_images), video: whole(row.daily_videos), voice: whole(row.daily_voice) }
   } };
@@ -85,6 +87,7 @@ async function mediaLimit(token, admin, kind) {
   if (admin) return { limit: 1000000, kindLimit: 1000000 };
   const result = await accountPlan(token);
   if (result.error) return { status: result.error === 'session_expired' ? 401 : 503, error: result.error };
+  if (result.plan.unlimited) return { limit: 1000000, kindLimit: 1000000 };
   if (!result.plan.paidModels || !result.plan.daily[kind]) return { status: 403, error: 'plan_required' };
   return { limit: planLimit(result.plan), kindLimit: result.plan.daily[kind] };
 }
@@ -101,15 +104,21 @@ async function consumeMedia(token, kind, access) {
   return { reservation: row.reservation_id };
 }
 
-// Background calls (conversation titles, memory) use the same economical model as the free plan's chat,
-// so the free plan never reaches a paid model. Unknown plan → the economical model.
-async function usesFreeModel(token) {
-  if (await isAdminSession(token)) return false;
+// Background calls (conversation titles, memory) do not spend messages, but each account may make at most this many
+// a day, so they cannot be repeated without end at NUNA's expense. On the free plan they use its economical model.
+const BACKGROUND_DAILY_LIMIT = 200;
+async function backgroundAccess(token) {
+  if (await isAdminSession(token)) return { free: false };
   const result = await accountPlan(token);
-  return !result.plan || !result.plan.paidModels;
+  if (result.error) return { status: result.error === 'session_expired' ? 401 : 503, error: result.error };
+  if (result.plan.unlimited) return { free: false };
+  const { status, data } = await supabaseRpc('consume_ai_background', token, { p_limit: BACKGROUND_DAILY_LIMIT });
+  if (status !== 200 || typeof data !== 'boolean') return { status: 503, error: 'accounts_unavailable' };
+  if (!data) return { status: 429, error: 'background_limit' };
+  return { free: !result.plan.paidModels };
 }
 function freeChatEndpoint() {
   return { url: `${qwenBase()}/chat/completions`, key: env('DASHSCOPE_API_KEY'), model: freeModel(), extra: { enable_thinking: false } };
 }
 
-module.exports = { freeModel, qwenBase, accountPlan, planLimit, mediaLimit, consumeMedia, usesFreeModel, freeChatEndpoint, tokenUsage, estimateCost, logAiEvent, PRICES };
+module.exports = { freeModel, qwenBase, accountPlan, planLimit, mediaLimit, consumeMedia, backgroundAccess, BACKGROUND_DAILY_LIMIT, freeChatEndpoint, tokenUsage, estimateCost, logAiEvent, PRICES };

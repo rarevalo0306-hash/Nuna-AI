@@ -10,12 +10,16 @@ Variables privadas del servidor en Vercel:
 - `NUNA_LOCAL_QWEN_KEY`: clave de **API externa** de Servidor NUNA; tipo Secret.
 - `NUNA_LOCAL_QWEN_MODEL`: `unsloth/Qwen3.5-9B-GGUF` para el modelo instalado.
 - `NUNA_LOCAL_QWEN_EMAIL`: conserva la cuenta permitida existente.
-- `NUNA_LOCAL_QWEN_FALLBACK=false`: si la PC no responde, la configuración falla,
+- `NUNA_LOCAL_QWEN_FALLBACK=false` (también vale `FALSE`, `0`, `no` u `off`): si la PC no responde, la configuración falla,
   el contexto es muy largo o la respuesta se corta, muestra un error y devuelve
   la cuota; no llama al proveedor de pago para esa cuenta. Otras cuentas siguen
   usando el proveedor que ya tenían configurado.
 
-La llamada a Windows incluye modelo, mensajes, máximo 2048 tokens y `stream:false`.
+La llamada a Windows incluye modelo, mensajes, máximo 2048 tokens y `stream:false`, y pide responder sin fase de
+razonamiento (`reasoning_effort:'none'` y `chat_template_kwargs.enable_thinking=false`, como hacía el puente del Mac).
+Si el motor rechaza esas opciones (400 o 422), se repite una vez sin ellas. Un bloque `<think>…</think>` nunca se
+muestra. Los fragmentos de documentos se recortan para caber en el contexto local; la conversación no. La espera
+se ajusta al tiempo que le queda a la función (90 s en total) para poder devolver la cuota si la PC no responde.
 El chat muestra «Respuesta de Qwen en tu PC» únicamente cuando el servidor obtiene
 una respuesta real del endpoint local. No afirma éxito al recibir un error.
 

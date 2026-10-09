@@ -19,3 +19,16 @@ test('bad Windows configuration and long context cannot silently fall back',asyn
  const value=await localQwenReply(user,'x'.repeat(16001),[]);assert.equal(value.reason,'context');assert.equal(value.fallbackAllowed,false);
  assert.deepEqual(await localQwenReply({...user,email:'other@example.com'},'system',[]),{attempted:false});
 });
+test('thinking is turned off, a server that rejects that option gets the plain request, and inline thinking is hidden',async()=>{
+ const old=fetch;const bodies=[];global.fetch=async(url,options)=>{const body=JSON.parse(options.body);bodies.push(body);if(body.reasoning_effort)return{ok:false,status:422,json:async()=>({})};return{ok:true,status:200,json:async()=>({choices:[{message:{content:'<think>plan</think>\nHola'},finish_reason:'stop'}]})}};
+ try{const value=await localQwenReply(user,'system',[{role:'user',content:'Hola'}]);assert.equal(value.text,'Hola');assert.equal(bodies.length,2);
+  assert.equal(bodies[0].reasoning_effort,'none');assert.deepEqual(bodies[0].chat_template_kwargs,{enable_thinking:false});assert.equal(bodies[1].reasoning_effort,undefined)}finally{global.fetch=old}
+});
+test('local-only also holds for FALSE, 0, no and off, and the wait respects the caller time limit',async()=>{
+ const old=process.env.NUNA_LOCAL_QWEN_FALLBACK;
+ try{for(const v of ['FALSE','0','no','off']){process.env.NUNA_LOCAL_QWEN_FALLBACK=v;assert.equal((await localQwenReply(user,'x'.repeat(16001),[])).fallbackAllowed,false)}
+  process.env.NUNA_LOCAL_QWEN_FALLBACK='true';assert.equal((await localQwenReply(user,'x'.repeat(16001),[])).fallbackAllowed,true);
+  process.env.NUNA_LOCAL_QWEN_FALLBACK='false';const asked=[];const oldFetch=fetch;global.fetch=async()=>({ok:true,status:200,json:async()=>({choices:[{message:{content:'Hola'},finish_reason:'stop'}]})});
+  try{await localQwenReply(user,'system',[{role:'user',content:'Hola'}],{timeout:max=>{asked.push(max);return 9000}});assert.deepEqual(asked,[45000])}finally{global.fetch=oldFetch}
+ }finally{process.env.NUNA_LOCAL_QWEN_FALLBACK=old}
+});
