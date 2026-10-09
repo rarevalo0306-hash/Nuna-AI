@@ -163,6 +163,10 @@ module.exports = async function handler(req, res) {
       await logAiEvent(session, reservation, 'chat', 'local', local.model, { input: null, output: null }, 0);
       return res.status(200).json({text:local.text,model:local.model,provider,usage,execution:'local',...(freeRoute ? {routed:'free'} : {})});
     }
+    if (local.attempted && local.fallbackAllowed === false) {
+      await refund();
+      return fail(503, local.reason === 'context' ? 'local_context_limit' : local.reason === 'incomplete' ? 'local_incomplete' : 'local_unavailable', provider, usage ? {usage} : {});
+    }
     const isAnthropic = provider === 'anthropic';
     // Claude Opus 5 / 5.5, Fable 5 and Sonnet 5.5 always think: effort sets how much, thinking counts toward max_tokens,
     // and a safety decline is retried server-side on Anthropic's recommended fallback model.
