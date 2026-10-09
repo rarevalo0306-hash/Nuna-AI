@@ -33,7 +33,7 @@ export default {
     else{
      const auth=await fetch(env.SUPABASE_URL+'/auth/v1/user',{headers:{apikey:env.SUPABASE_KEY,Authorization:token},signal:AbortSignal.timeout(8000)});
      const user=auth.ok?await auth.json():null;
-     if(!user||!uuid.test(user.id))response=json({error:'sign_in_required'},401);
+     if(!user||!user.email_confirmed_at||!uuid.test(user.id))response=json({error:'sign_in_required'},401);
      else{
       // Existing Supabase files remain readable and count toward the same allowance.
       let legacy=0;

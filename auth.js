@@ -53,7 +53,7 @@ async function refreshUsage() {
 async function authAccessToken() {
   if (!authClient) return ''
   const { data } = await authClient.auth.getSession()
-  return data.session?.access_token || ''
+  return data.session?.user?.email_confirmed_at ? data.session.access_token || '' : ''
 }
 // After signing in, wait (up to a limit) until the account's conversations are loaded, so new chats go to the account.
 async function waitForAccount(ms = 15000) {
@@ -124,7 +124,6 @@ function showAuth() {
   if (!authClient) {
     message.textContent = authText('Las cuentas no están disponibles en este momento. Recarga la página para volver a intentarlo.', 'Accounts are not available right now. Reload the page to try again.')
     authDialog.append(message)
-    link(authText('Tengo un código de acceso de administrador', 'I have an admin access code'), useAdminCode)
     return
   }
 
@@ -283,7 +282,7 @@ function showAuth() {
         const { data, error } = await authClient.auth.signUp({ email: email.value.trim(), password: password.value, options: { emailRedirectTo: redirectTo, data: fullName ? { full_name: fullName } : {} } })
         if (error) throw error
         if (fullName) setAccountName(fullName)
-        if (data.session) authDialog.close()
+        if (data.session?.user?.email_confirmed_at) authDialog.close()
         else { authMode = 'sent'; authNotice = authText(`Te enviamos un enlace a ${email.value.trim()} para confirmar tu cuenta. Ábrelo en este dispositivo y volverás a NUNA con la sesión iniciada.`, `We sent a link to ${email.value.trim()} to confirm your account. Open it on this device to come back to NUNA signed in.`); showAuth() }
       } else if (authMode === 'forgot') {
         const { error } = await authClient.auth.resetPasswordForEmail(email.value.trim(), { redirectTo })
@@ -331,13 +330,8 @@ function showAuth() {
     terms.className = 'settings-note auth-terms'
     terms.textContent = authText('Las cuentas empiezan en el plan Gratis, con un número de mensajes a la IA cada día. Tus conversaciones se guardan en tu cuenta y se envían al proveedor del modelo que responde: en el plan Gratis, Qwen de Alibaba Cloud.', 'Accounts start on the Free plan, with a number of AI messages each day. Your conversations are saved to your account and sent to the provider of the model that answers: on the Free plan, Qwen by Alibaba Cloud.')
     authDialog.append(terms)
-    link(authText('Tengo un código de acceso de administrador', 'I have an admin access code'), useAdminCode).classList.add('auth-admin')
   }
   ;(authDialog.querySelector('form input') || close).focus()
-}
-function useAdminCode() {
-  authDialog.close()
-  askAICode(() => { refreshOpenAITest(); openAIStatus.textContent = authText('Código guardado. Ya puedes enviar tu mensaje.', 'Code saved. You can send your message now.') })
 }
 async function signOutAccount(say, button) {
   if (button) button.disabled = true
@@ -625,7 +619,8 @@ function leaveAccountData() {
 
 async function handleAuthChange(event, session) {
   if (event === 'PASSWORD_RECOVERY') openAuth('recovery', authText('Escribe tu nueva contraseña.', 'Enter your new password.'))
-  const user = session?.user || null
+  const user = session?.user?.email_confirmed_at ? session.user : null
+  if (session?.user && !user) authNotice = authText('Confirma tu email antes de usar NUNA. Revisa tu bandeja de entrada y el correo no deseado.', 'Confirm your email before using NUNA. Check your inbox and spam folder.')
   const changed = (user?.id || null) !== (authUser?.id || null)
   if (changed && authUser) { authUser = null; leaveAccountData() }
   authUser = user
