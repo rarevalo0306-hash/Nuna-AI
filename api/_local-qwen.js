@@ -1,32 +1,38 @@
-// Private, account-scoped LM Studio trial. No client-supplied endpoint or credentials.
+// Private, account-scoped local inference. No client-supplied endpoint or credentials.
 const env = name => (process.env[name] || '').trim();
-function localQwenConfig(user) {
+function localQwenAccount(user) {
   const email = String(user?.email || '').toLowerCase();
   const allowed = env('NUNA_LOCAL_QWEN_EMAIL').toLowerCase();
-  if (!user?.id || !user.email_confirmed_at || !allowed || email !== allowed) return null;
+  return Boolean(user?.id && user.email_confirmed_at && allowed && email === allowed);
+}
+function localQwenConfig(user) {
+  if (!localQwenAccount(user)) return null;
   try {
     const url = new URL(env('NUNA_LOCAL_QWEN_URL'));
     const key = env('NUNA_LOCAL_QWEN_KEY');
-    if (url.protocol !== 'https:' || url.username || url.password || key.length < 32) return null;
-    return {url: url.origin + '/v1/chat/completions', key};
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || key.length < 32) return null;
+    return {url: url.origin + '/v1/chat/completions', key,
+      model: env('NUNA_LOCAL_QWEN_MODEL') || 'qwen/qwen3.5-9b'};
   } catch { return null; }
 }
 async function localQwenReply(user, instructions, messages) {
+  if (!localQwenAccount(user)) return {attempted:false};
+  const failure = reason => ({attempted:true,reason,fallbackAllowed:env('NUNA_LOCAL_QWEN_FALLBACK') !== 'false'});
   const config = localQwenConfig(user);
-  if (!config) return {attempted:false};
-  // Keep the local 8K context intact. Long conversations use the cloud fallback instead of silently dropping history.
-  if (instructions.length + messages.reduce((n,m)=>n+m.content.length,0) > 16000) return {attempted:true,reason:'context'};
+  if (!config) return failure('configuration');
+  // Keep the local 8K context intact rather than silently dropping history.
+  if (instructions.length + messages.reduce((n,m)=>n+m.content.length,0) > 16000) return failure('context');
   try {
     const response = await fetch(config.url, {
       method:'POST', headers:{Authorization:'Bearer '+config.key,'Content-Type':'application/json'},
-      body:JSON.stringify({messages:[{role:'system',content:instructions},...messages]}),
-      signal:AbortSignal.timeout(20000), redirect:'error'
+      body:JSON.stringify({model:config.model,messages:[{role:'system',content:instructions},...messages],max_tokens:2048,temperature:0.7,stream:false}),
+      signal:AbortSignal.timeout(env('NUNA_LOCAL_QWEN_FALLBACK') === 'false' ? 45000 : 20000), redirect:'error'
     });
-    if (!response.ok) return {attempted:true,reason:'unavailable'};
+    if (!response.ok) return failure('unavailable');
     const data=await response.json();
     const text=data.choices?.[0]?.message?.content;
-    if (typeof text!=='string' || !text.trim() || data.choices[0].finish_reason==='length') return {attempted:true,reason:'incomplete'};
-    return {attempted:true,text:text.trim(),model:'qwen/qwen3.5-9b'};
-  } catch { return {attempted:true,reason:'unavailable'}; }
+    if (typeof text!=='string' || !text.trim() || data.choices[0].finish_reason==='length') return failure('incomplete');
+    return {attempted:true,text:text.trim(),model:data.model || config.model};
+  } catch { return failure('unavailable'); }
 }
 module.exports={localQwenConfig,localQwenReply};
