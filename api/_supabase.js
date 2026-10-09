@@ -25,7 +25,7 @@ function dailyLimit() {
 }
 
 // Call a database function as the signed-in person: Supabase checks the session token, so no secret key is needed here.
-async function supabaseRpc(name, token, args = {}) {
+async function supabaseRpc(name, token, args = {}, timeout = 8000) {
   const config = supabaseConfig();
   if (!config) return { status: 0, data: null };
   try {
@@ -33,7 +33,7 @@ async function supabaseRpc(name, token, args = {}) {
       method: 'POST',
       headers: { apikey: config.key, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(args),
-      signal: AbortSignal.timeout(8000)
+      signal: AbortSignal.timeout(timeout)
     });
     return { status: response.status, data: await response.json().catch(() => null) };
   } catch {

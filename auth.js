@@ -23,16 +23,32 @@ function usageResetAt() {
   const time = d.toLocaleTimeString(lang === 'es' ? 'es' : 'en', { hour: 'numeric', minute: '2-digit' })
   return lang === 'es' ? (d.getHours() === 1 ? 'a la ' : 'a las ') + time : 'at ' + time
 }
+// Plan name in the page language (the database stores the Spanish names).
+function planLabel() {
+  if (!authUsage?.plan) return ''
+  const names = { gratis: ['Gratis', 'Free'], plus: ['Plus', 'Plus'], pro: ['Pro', 'Pro'] }[authUsage.plan]
+  return names ? authText(names[0], names[1]) : String(authUsage.planName || authUsage.plan)
+}
 function usageLine() {
   if (!authUsage) return ''
+  if (authUsage.admin) { const n = authUsage.used; return authText(`Cuenta de administrador: sin límite diario. Hoy has enviado ${n} ${n === 1 ? 'mensaje' : 'mensajes'}.`, `Administrator account: no daily limit. You have sent ${n} ${n === 1 ? 'message' : 'messages'} today.`) }
   const left = Math.max(authUsage.limit - authUsage.used, 0)
-  return authText(`Has usado ${authUsage.used} de ${authUsage.limit} mensajes de hoy (te quedan ${left}). Se renuevan ${usageResetAt()}.`,
+  const plan = planLabel(), planText = plan ? authText(`Plan ${plan}. `, `${plan} plan. `) : ''
+  return planText + authText(`Has usado ${authUsage.used} de ${authUsage.limit} mensajes de hoy (te quedan ${left}). Se renuevan ${usageResetAt()}.`,
     `You have used ${authUsage.used} of today's ${authUsage.limit} messages (${left} left). They reset ${usageResetAt()}.`)
 }
+// Asks the server, which knows the account's plan and whether it is an administrator (no daily limit).
 async function refreshUsage() {
   if (!authClient || !authUser) return
-  const { data, error } = await authClient.rpc('ai_usage_today')
-  if (!error && Number.isInteger(data)) authUsage = { used: data, limit: authDailyLimit }
+  const userId = authUser.id
+  const token = await authAccessToken()
+  if (!token) return
+  try {
+    const response = await fetch('/api/chat', { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(15000) })
+    const data = await response.json()
+    // A reply that arrives after signing out (or into another account) belongs to the previous person: drop it.
+    if (response.ok && authUser?.id === userId) noteUsage(data)
+  } catch {}
 }
 async function authAccessToken() {
   if (!authClient) return ''
@@ -121,7 +137,7 @@ function showAuth() {
     via.textContent = (authUser.app_metadata?.provider === 'google' ? authText('Acceso con Google.', 'Signed in with Google.') : authText('Acceso con correo y contraseña.', 'Signed in with email and password.')) + ' ' + authText('Tus conversaciones y proyectos se guardan en tu cuenta.', 'Your conversations and projects are saved to your account.')
     const usage = document.createElement('p')
     usage.className = 'settings-note'
-    usage.textContent = usageLine() || authText('Cada cuenta puede enviar ' + authDailyLimit + ' mensajes a la IA al día.', 'Each account can send ' + authDailyLimit + ' AI messages a day.')
+    usage.textContent = usageLine() || authText('Cargando el uso de hoy…', 'Loading today’s usage…')
     const out = document.createElement('button')
     out.type = 'button'
     out.className = 'auth-primary'
@@ -313,7 +329,7 @@ function showAuth() {
   if (authMode === 'login' || authMode === 'signup') {
     const terms = document.createElement('p')
     terms.className = 'settings-note auth-terms'
-    terms.textContent = authText('Con una cuenta puedes enviar ' + authDailyLimit + ' mensajes a la IA cada día. Tus conversaciones se guardan en tu cuenta y se envían al proveedor del modelo elegido para responder.', 'An account can send ' + authDailyLimit + ' AI messages a day. Your conversations are saved to your account and sent to the chosen model provider to answer.')
+    terms.textContent = authText('Las cuentas empiezan en el plan Gratis, con un número de mensajes a la IA cada día. Tus conversaciones se guardan en tu cuenta y se envían al proveedor del modelo que responde: en el plan Gratis, Qwen de Alibaba Cloud.', 'Accounts start on the Free plan, with a number of AI messages each day. Your conversations are saved to your account and sent to the provider of the model that answers: on the Free plan, Qwen by Alibaba Cloud.')
     authDialog.append(terms)
     link(authText('Tengo un código de acceso de administrador', 'I have an admin access code'), useAdminCode).classList.add('auth-admin')
   }
@@ -563,7 +579,8 @@ async function loadAccountData() {
     if (first) openAIStatus.textContent = local.length ? authText('Sesión iniciada. Los chats de este dispositivo se están añadiendo a tu cuenta.', 'Signed in. Chats from this device are being added to your account.') : authText('Sesión iniciada.', 'Signed in.')
     render()
     queueSync(0)
-    if (first) refreshUsage()
+    // The plan decides which models the composer offers, so repaint once it is known.
+    if (first) refreshUsage().then(() => { if (stillSameUser()) render() })
   } catch (error) {
     console.warn('nuna_load_error', error?.code || error?.message || error)
     if (first && stillSameUser()) {

@@ -131,11 +131,16 @@ function renderVoice() {
 }
 function voiceSetStatus(es, en) { if (/Preparing reply|Creating your image/.test(en)) voiceThinking=true; else if (/Listening|speaking|muted|ended|failed|lost|could not/i.test(en)) voiceThinking=false; voiceMessage = vText(es, en); renderVoice(); }
 function voiceFailure(error) {
+  const reset = typeof usageResetAt === 'function' ? usageResetAt() : '';
   const messages = {
     voice_network_timeout:['No se pudo establecer el audio. Prueba otra red Wi-Fi o los datos móviles y vuelve a conectar.','Audio could not connect. Try another Wi-Fi network or cellular data and reconnect.'],
     microphone_timeout:['Safari no respondió al permiso del micrófono. Revisa el permiso de este sitio y vuelve a intentar.','Safari did not answer the microphone request. Check this site’s microphone permission and retry.'],
     login_required:['Inicia sesión en NUNA para usar la voz.', 'Sign in to NUNA to use voice.'],
     voice_test_only:['La voz está disponible para la cuenta de administrador. Comprueba que iniciaste sesión con esa cuenta; también puedes usar tu código de administrador.', 'Voice is available to the administrator account. Check that you signed in with that account; you can also use your administrator code.'],
+    plan_required:['La voz está disponible en los planes Plus y Pro.', 'Voice is available on the Plus and Pro plans.'],
+    media_limit:['Ya usaste las sesiones de voz de hoy de tu plan. Se renuevan '+reset+'.', 'You have used today’s voice sessions for your plan. They reset '+reset+'.'],
+    daily_limit:['Ya usaste los mensajes de hoy. Se renuevan '+reset+'.', 'You have used today’s messages. They reset '+reset+'.'],
+    session_expired:['Tu sesión caducó. Vuelve a iniciar sesión para usar la voz.', 'Your session expired. Sign in again to use voice.'],
     provider_key_missing:['Falta configurar el servicio de voz.', 'The voice service is not configured.'],
     provider_model_missing:['Tu clave no tiene acceso al modelo de voz configurado.', 'Your key cannot access the configured voice model.'],
     provider_auth:['El servicio de voz rechazó el acceso. Revisa los permisos de la clave.', 'The voice service rejected access. Check key permissions.'],

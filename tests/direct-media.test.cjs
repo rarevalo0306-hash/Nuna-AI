@@ -14,7 +14,7 @@ const token='eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6Im5vcm1hbEBleGFtcGxlLmNvbSJ9.signa
 test('direct images preserve source ownership, inline bytes and provider credentials',async()=>{const old=global.fetch;let permitted=true;try{
  global.fetch=async(url,opts)=>{
   if(url.endsWith('/auth/v1/user'))return {ok:true,json:async()=>({id:'one',email_confirmed_at:'now'})};
-  if(url.includes('consume_ai_message'))return {status:200,json:async()=>[{ok:true,reservation_id:'r'}]};
+  if(url.includes('my_plan'))return{status:200,json:async()=>[{plan:'plus',plan_name:'Plus',daily_messages:150,paid_models:true,storage_gb:null,daily_images:10,daily_videos:1,daily_voice:2}]};if(url.includes('consume_ai_media'))return {status:200,json:async()=>[{ok:true,reservation_id:'r'}]};
   if(url.includes('workers.dev'))return {ok:permitted,arrayBuffer:async()=>Uint8Array.from([137,80,78,71,13,10,26,10]).buffer};
   const b=JSON.parse(opts.body);
   if(url.endsWith('/images/edits')){assert.equal(opts.headers.Authorization,'Bearer private-xai');assert.match(b.image.url,/^data:image\/png;base64,/);return {ok:true,json:async()=>({data:[{b64_json:'aGVsbG8='}]})}}

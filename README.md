@@ -69,8 +69,26 @@ Proyecto de Supabase «Nuna-AI». El esquema está en `supabase/migrations/20261
 Variables en Vercel (valores públicos; el acceso lo controla la base de datos):
 
 - `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY`: el navegador los recibe de `GET /api/config` para iniciar sesión.
-- `NUNA_DAILY_LIMIT`: mensajes de IA por cuenta y día; por defecto 30.
-- `NUNA_ADMIN_EMAILS`: correos de las cuentas de administrador, separados por comas. Esas cuentas no tienen límite diario (sus mensajes se siguen contando) y pueden usar el piloto de voz, igual que el código de acceso. El servidor confirma con Supabase Auth que la sesión es válida y el correo está verificado.
+- `NUNA_DAILY_LIMIT`: con `0` pausa la IA para todas las cuentas salvo las de administrador. Los límites diarios salen del plan de cada cuenta.
+- `NUNA_FREE_MODEL`: modelo económico del plan Gratis en DashScope; por defecto `qwen3.7-flash`.
+
+### Planes y costes
+
+Migraciones `supabase/migrations/20261007000000_plans_and_ai_events.sql` y `20261007010000_media_caps_and_event_integrity.sql`:
+
+| Plan | Mensajes al día | Modelos | Imágenes / videos / sesiones de voz al día | Almacenamiento |
+|---|---|---|---|---|
+| Gratis (por defecto) | 30 | solo el modelo económico (`NUNA_FREE_MODEL`, Qwen) | 0 / 0 / 0 | 2 GB |
+| Plus | 150 | el que elija la persona | 10 / 1 / 2 | por definir |
+| Pro | 500 | el que elija la persona | 30 / 3 / 5 | por definir |
+
+- Los límites están en `private.plans` y el plan de cada cuenta en `private.account_plans`; una cuenta sin fila es Gratis. No hay API para cambiarlo: se asigna desde Supabase. Ejemplo: `insert into private.account_plans (owner, plan) select id, 'plus' from auth.users where email = 'persona@ejemplo.com' on conflict (owner) do update set plan = excluded.plan, updated_at = now();`
+- Cada imagen, video o sesión de voz (hasta 5 minutos) gasta uno del tope de su tipo y además un mensaje. Los topes son de seguridad hasta que existan los créditos; se cambian con, por ejemplo, `update private.plans set daily_videos = 2 where id = 'plus';`.
+- En el plan Gratis, los títulos de las conversaciones y la memoria también usan el modelo económico.
+- Los administradores (`NUNA_ADMIN_EMAILS`) no tienen plan ni límite.
+- Cada respuesta de IA y cada sesión de voz de una cuenta guarda en `private.ai_events` el plan, el proveedor, el modelo, los tokens que informó el proveedor y el coste estimado con la tabla de precios oficiales de `api/_plans.js`. Nunca se guarda el contenido. Los modelos sin precio confirmado (y la voz, que se cobra por minutos de uso) se registran sin coste. La base de datos solo acepta una fila por mensaje que el servidor reservó para esa persona.
+- Coste por plan en los últimos 30 días (las cuentas de administrador aparte; pon sus correos): `select case when u.email = any (array['admin@ejemplo.com']) then 'admin' else e.plan end plan, e.kind, count(*) usos, sum(e.input_tokens) entrada, sum(e.output_tokens) salida, sum(e.cost_usd) coste from private.ai_events e join auth.users u on u.id = e.owner where e.created_at > now() - interval '30 days' group by 1, 2 order by 1, 2;`
+- `NUNA_ADMIN_EMAILS`: correos de las cuentas de administrador, separados por comas. Esas cuentas no tienen límite diario (sus mensajes se siguen contando) y pueden usar imágenes, videos y voz sin tope, igual que el código de acceso en el chat y la voz. El servidor confirma con Supabase Auth que la sesión es válida y el correo está verificado.
 
 No hace falta la clave secreta (`service_role`): `/api/chat` llama a las funciones de la base de datos con la sesión de la persona, y Supabase verifica el token.
 
