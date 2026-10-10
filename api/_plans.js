@@ -16,6 +16,8 @@ async function accountPlan(token) {
   if (status !== 200 || !row || !Number.isInteger(row.daily_messages)) return { error: 'accounts_unavailable' };
   return { plan: {
     id: row.plan, name: row.plan_name, dailyMessages: row.daily_messages, paidModels: row.paid_models === true,
+    // The Administrador plan has no restrictions, like an account in NUNA_ADMIN_EMAILS.
+    unlimited: row.plan === 'administrador',
     storageGb: row.storage_gb === null ? null : Number(row.storage_gb),
     daily: { image: whole(row.daily_images), video: whole(row.daily_videos), voice: whole(row.daily_voice) }
   } };
@@ -85,6 +87,7 @@ async function mediaLimit(token, admin, kind) {
   if (admin) return { limit: 1000000, kindLimit: 1000000 };
   const result = await accountPlan(token);
   if (result.error) return { status: result.error === 'session_expired' ? 401 : 503, error: result.error };
+  if (result.plan.unlimited) return { limit: 1000000, kindLimit: 1000000 };
   if (!result.plan.paidModels || !result.plan.daily[kind]) return { status: 403, error: 'plan_required' };
   return { limit: planLimit(result.plan), kindLimit: result.plan.daily[kind] };
 }

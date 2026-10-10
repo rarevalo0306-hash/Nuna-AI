@@ -76,17 +76,20 @@ Variables en Vercel (valores públicos; el acceso lo controla la base de datos):
 
 ### Planes y costes
 
-Migraciones `supabase/migrations/20261007000000_plans_and_ai_events.sql` y `20261007010000_media_caps_and_event_integrity.sql`:
+Migraciones `supabase/migrations/20261007000000_plans_and_ai_events.sql`, `20261007010000_media_caps_and_event_integrity.sql` y `20261009000000_admin_plan_and_background_quota.sql`:
 
 | Plan | Mensajes al día | Modelos | Imágenes / videos / sesiones de voz al día | Almacenamiento |
 |---|---|---|---|---|
 | Gratis (por defecto) | 30 | solo el modelo económico (`NUNA_FREE_MODEL`, Qwen) | 0 / 0 / 0 | 2 GB |
 | Plus | 150 | el que elija la persona | 10 / 1 / 2 | por definir |
 | Pro | 500 | el que elija la persona | 30 / 3 / 5 | por definir |
+| Administrador | sin límite | todos | sin límite | sin límite |
 
 - Los límites están en `private.plans` y el plan de cada cuenta en `private.account_plans`; una cuenta sin fila es Gratis. No hay API para cambiarlo: se asigna desde Supabase. Ejemplo: `insert into private.account_plans (owner, plan) select id, 'plus' from auth.users where email = 'persona@ejemplo.com' on conflict (owner) do update set plan = excluded.plan, updated_at = now();`
 - Cada imagen, video o sesión de voz (hasta 5 minutos) gasta uno del tope de su tipo y además un mensaje. Los topes son de seguridad hasta que existan los créditos; se cambian con, por ejemplo, `update private.plans set daily_videos = 2 where id = 'plus';`.
-- En el plan Gratis, los títulos de las conversaciones y la memoria también usan el modelo económico.
+- En el plan Gratis, los títulos de las conversaciones y la memoria también usan el modelo económico. Cada título o actualización de memoria gasta un mensaje del día y queda en el registro de costes.
+- El plan Administrador no tiene restricciones: el servidor lo trata igual que una cuenta de `NUNA_ADMIN_EMAILS` (la pantalla Uso muestra «Cuenta de administrador»). Se asigna como cualquier plan: `insert into private.account_plans (owner, plan) select id, 'administrador' from auth.users where email = 'persona@ejemplo.com' on conflict (owner) do update set plan = excluded.plan, updated_at = now();`
+- La voz limita cada sesión a 5 minutos en el navegador; OpenAI no permite cortarla desde el servidor y la corta a los 60 minutos. Por eso las sesiones de voz al día de cada plan son pocas.
 - Los administradores (`NUNA_ADMIN_EMAILS`) no tienen plan ni límite.
 - Cada respuesta de IA y cada sesión de voz de una cuenta guarda en `private.ai_events` el plan, el proveedor, el modelo, los tokens que informó el proveedor y el coste estimado con la tabla de precios oficiales de `api/_plans.js`. Nunca se guarda el contenido. Los modelos sin precio confirmado (y la voz, que se cobra por minutos de uso) se registran sin coste. La base de datos solo acepta una fila por mensaje que el servidor reservó para esa persona.
 - Coste por plan en los últimos 30 días (las cuentas de administrador aparte; pon sus correos): `select case when u.email = any (array['admin@ejemplo.com']) then 'admin' else e.plan end plan, e.kind, count(*) usos, sum(e.input_tokens) entrada, sum(e.output_tokens) salida, sum(e.cost_usd) coste from private.ai_events e join auth.users u on u.id = e.owner where e.created_at > now() - interval '30 days' group by 1, 2 order by 1, 2;`

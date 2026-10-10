@@ -5,7 +5,7 @@ process.env.OPENAI_API_KEY='openai-key';process.env.NUNA_ADMIN_EMAILS='admin@exa
 const chat=require('../api/chat');const images=require('../api/images');const memory=require('../api/memory');const {tokenUsage,estimateCost}=require('../api/_plans');
 const jwt=email=>'eyJhbGciOiJIUzI1NiJ9.'+Buffer.from(JSON.stringify({email})).toString('base64url')+'.signature';
 const response=()=>({setHeader(){},status(n){this.code=n;return this},json(b){this.body=b;return this}});
-const plans={gratis:{plan:'gratis',plan_name:'Gratis',daily_messages:30,paid_models:false,storage_gb:2,daily_images:0,daily_videos:0,daily_voice:0},plus:{plan:'plus',plan_name:'Plus',daily_messages:150,paid_models:true,storage_gb:null,daily_images:10,daily_videos:1,daily_voice:2}};
+const plans={administrador:{plan:'administrador',plan_name:'Administrador',daily_messages:1000000,paid_models:true,storage_gb:null,daily_images:1000000,daily_videos:1000000,daily_voice:1000000},gratis:{plan:'gratis',plan_name:'Gratis',daily_messages:30,paid_models:false,storage_gb:2,daily_images:0,daily_videos:0,daily_voice:0},plus:{plan:'plus',plan_name:'Plus',daily_messages:150,paid_models:true,storage_gb:null,daily_images:10,daily_videos:1,daily_voice:2}};
 function mock(plan,email='person@example.com',media={ok:true,kind_limit_reached:false}){const calls=[];const fetch=async(url,options={})=>{const body=options.body&&typeof options.body==='string'?JSON.parse(options.body):null;calls.push({url,body});
  if(url.endsWith('/auth/v1/user'))return{ok:true,json:async()=>({id:'user-1',email,email_confirmed_at:'now'})};
  if(url.endsWith('/rpc/my_plan_limits'))return{status:200,json:async()=>[plans[plan]]};
@@ -61,3 +61,17 @@ test('token counts per provider and cost only for known prices',()=>{
  assert.deepEqual(tokenUsage('grok',{usage:{prompt_tokens:32,completion_tokens:9,total_tokens:135,completion_tokens_details:{reasoning_tokens:94}}}),{input:32,output:103});
  assert.deepEqual(tokenUsage('deepseek',{usage:{prompt_tokens:32,completion_tokens:9,total_tokens:41}}),{input:32,output:9});
  assert.equal(estimateCost('gpt-6-luna-2026-09-01',{input:1e6,output:1e6}),0.6);assert.equal(estimateCost('qwen-plus',{input:10,output:10}),null);assert.equal(estimateCost('qwen3.7-flash',{input:null,output:5}),null)});
+
+test('the Administrador plan has no restrictions, like an administrator account',async()=>{let m=mock('administrador');let res=await run(chat,post(jwt('person@example.com'),{provider:'anthropic',messages:[{role:'user',content:'Hola'}]}),m);
+ assert.equal(res.code,200);assert.equal(res.body.text,'hola plus');assert.equal(res.body.routed,undefined);
+ assert.deepEqual(res.body.usage,{used:3,limit:null,admin:true,plan:'administrador',planName:'Administrador',paidModels:true});
+ assert.equal(m.calls.find(c=>c.url.includes('consume_ai_message')).body.p_limit,1000000);
+ m=mock('administrador');res=await run(images,post(jwt('person@example.com'),{prompt:'A teal fish'}),m);
+ assert.equal(res.code,200);assert.deepEqual(m.calls.find(c=>c.url.includes('consume_ai_media')).body,{p_kind:'image',p_limit:1000000,p_kind_limit:1000000});
+ m=mock('administrador');res=await run(memory,post('test.session.token_of_sufficient_length',{action:'title',text:'Hola'}),m);
+ assert.equal(res.code,200);assert.equal(m.calls.find(c=>c.url.includes('consume_ai_message')).body.p_limit,1000000)});
+
+test('a session Supabase cannot confirm spends nothing and calls no provider',async()=>{const m=mock('plus');const inner=m.fetch;let auth=0;
+ const fetch=async(url,options)=>{if(url.endsWith('/auth/v1/user')&&++auth>=1)return{ok:false,status:500,json:async()=>({})};return inner(url,options)};
+ const res=await run(chat,post(jwt('person@example.com'),{provider:'anthropic',messages:[{role:'user',content:'Hola'}]}),{fetch,calls:m.calls});
+ assert.equal(res.code,401);assert.equal(res.body.error,'login_required');assert.equal(m.calls.some(c=>c.url.includes('consume_ai_message')),false);assert.equal(m.calls.some(c=>c.url.includes('anthropic.com')),false)});

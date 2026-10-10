@@ -52,8 +52,13 @@ const sessionRejected = (status, data) => status === 401 && /^PGRST30\d$/.test(S
 // A request that never reached the provider was not billed, so its message can be given back.
 const notSent = error => ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT'].includes(error?.cause?.code);
 
+// chat.js may run for 90 s (vercel.json). Provider calls get what is left after a margin for the refund and the reply.
+const TIME_BUDGET_MS = 85000, REFUND_MARGIN_MS = 15000;
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
+  const started = Date.now();
+  const timeLeft = max => Math.max(5000, Math.min(max, TIME_BUDGET_MS - REFUND_MARGIN_MS - (Date.now() - started)));
   // Log only the error code and provider so failures can be diagnosed in Vercel logs without exposing secrets or message content.
   const fail = (status, error, provider, extra = {}) => {
     console.warn(JSON.stringify({ nuna_chat_error: error, provider: provider || null, status, ...extra }));
@@ -67,7 +72,6 @@ module.exports = async function handler(req, res) {
   const confirmedUser = await verifiedSession(session);
   if (!confirmedUser) return fail(401, 'login_required');
   const admin = await isAdminSession(session,confirmedUser);
-  const owner = admin;
   // Every other account has a plan (Gratis by default) that sets its daily limit and whether it may use paid models.
   let plan = null;
   if (session && !admin) {
@@ -75,7 +79,10 @@ module.exports = async function handler(req, res) {
     if (result.error) return fail(result.error === 'session_expired' ? 401 : 503, result.error);
     plan = result.plan;
   }
-  const planUsage = used => admin ? { used, limit: null, admin: true } : { used, limit: planLimit(plan), plan: plan.id, planName: plan.name, paidModels: plan.paidModels };
+  // The Administrador plan has no restrictions, like an account in NUNA_ADMIN_EMAILS.
+  const unlimited = admin || Boolean(plan?.unlimited);
+  const owner = unlimited;
+  const planUsage = used => unlimited ? { used, limit: null, admin: true, ...(plan ? { plan: plan.id, planName: plan.name, paidModels: true } : {}) } : { used, limit: planLimit(plan), plan: plan.id, planName: plan.name, paidModels: plan.paidModels };
   const config = providerConfig();
   // GET reports only whether each provider has a key and a model configured (never values, model IDs or secrets),
   // plus today's usage for an account.
@@ -116,7 +123,7 @@ module.exports = async function handler(req, res) {
   // If the provider then fails, the message is given back.
   let usage = null, reservation = null;
   if (session) {
-    const limit = admin ? 1000000 : planLimit(plan);
+    const limit = unlimited ? 1000000 : planLimit(plan);
     if (limit === 0) return fail(503, 'accounts_paused');
     const { status, data } = await supabaseRpc('consume_ai_message', session, { p_limit: limit });
     if (sessionRejected(status, data)) return fail(401, 'session_expired');
@@ -179,7 +186,7 @@ module.exports = async function handler(req, res) {
         // The free plan's model answers without a thinking phase: it is billed as output and roughly multiplies the cost.
         : isDeepSeek ? { model, messages: [{ role: 'system', content: instructions }, ...messages], max_tokens: provider === 'grok' ? 8192 : 1200, stream: false, ...(freeRoute ? { enable_thinking: false } : {}) }
         : { model, instructions, input: messages, max_output_tokens: 1200, store: false }),
-      signal: AbortSignal.timeout(local.attempted ? 25000 : 45000)
+      signal: AbortSignal.timeout(timeLeft(local.attempted ? 25000 : 45000))
     });
     if (!response.ok) {
       const errors = { 400: 'provider_request', 401: 'provider_auth', 403: 'provider_permission', 404: 'provider_model', 429: 'provider_limit' };
