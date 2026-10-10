@@ -108,3 +108,10 @@ Las pruebas usan proveedores, base de datos, audio y sockets simulados. Comprueb
 - Se comprueba la cabecera MP4 descargada antes de guardar. Un fallo de descarga o almacenamiento deja el trabajo recuperable, muestra un aviso en la conversación y comunica ese estado a la interfaz de voz. No se anuncia un video entregado antes de adjuntar el archivo ni se inicia otra generación para recuperar el existente.
 - La prueba de integración del cliente ejercita consulta de estado → descarga MP4 → almacenamiento privado → adjunto, y recuperación del mismo trabajo tras un error de almacenamiento. Usa respuestas simuladas, sin una cuenta ni archivos del usuario. Las 90 pruebas automatizadas pasan con Node 22.
 - Estas correcciones no establecen la causa exacta del último intento del usuario: falta su mensaje de respuesta o una comprobación desde su sesión real. Las pruebas reales de generación del proveedor permanecen documentadas arriba.
+
+## Entrada del centro administrativo — 2026-10-10
+
+- admin.or-nuna.com sirve una entrada independiente mediante una regla de host de Vercel; el dominio principal conserva el chat. El diseño admin-preview.html previo se conserva sin publicar ni alterar.
+- La entrada usa Supabase Auth con una sesión de navegador separada. GET /api/admin exige sesión confirmada y comprueba NUNA_ADMIN_EMAILS en el servidor; invitados y cuentas normales no reciben acceso. Se desactiva caché del estado y se impide incrustar la entrada del subdominio en marcos.
+- Las secciones de usuarios, planes/rentabilidad, uso/costos y facturación están preparadas para navegar, pero los datos del negocio no están conectados. No hay estadísticas ficticias, cambios de permisos, cobros ni un proveedor de pagos activo en este centro.
+- Las variables actuales de Production contienen la clave pública de Supabase para inicio de sesión, pero no una credencial de servidor para administración global. Esta entrega no permite administrar cuentas reales ni facturación; queda pendiente una integración de datos con permisos adecuados.
