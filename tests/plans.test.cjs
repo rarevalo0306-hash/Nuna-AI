@@ -77,7 +77,7 @@ test('titles and memory have a daily cap and do not spend messages',async()=>{le
  m=mock('gratis','person@example.com',undefined,false);res=await run(memory,post('test.session.token_of_sufficient_length',{action:'title',text:'Hola'}),m);
  assert.equal(res.code,429);assert.equal(res.body.error,'background_limit');assert.equal(m.calls.some(c=>c.url.includes('dashscope')||c.url.includes('openai.com')),false)});
 
-test('a session Supabase cannot confirm gives the message back and calls no provider',async()=>{const m=mock('plus');const inner=m.fetch;let auth=0;
+test('a session Supabase cannot confirm spends nothing and calls no provider',async()=>{const m=mock('plus');const inner=m.fetch;let auth=0;
  const fetch=async(url,options)=>{if(url.endsWith('/auth/v1/user')&&++auth>=1)return{ok:false,status:500,json:async()=>({})};return inner(url,options)};
  const res=await run(chat,post(jwt('person@example.com'),{provider:'anthropic',messages:[{role:'user',content:'Hola'}]}),{fetch,calls:m.calls});
- assert.equal(res.code,503);assert.equal(res.body.error,'accounts_unavailable');assert.equal(m.calls.some(c=>c.url.includes('refund_ai_message')),true);assert.equal(m.calls.some(c=>c.url.includes('anthropic.com')),false)});
+ assert.equal(res.code,401);assert.equal(res.body.error,'login_required');assert.equal(m.calls.some(c=>c.url.includes('consume_ai_message')),false);assert.equal(m.calls.some(c=>c.url.includes('anthropic.com')),false)});

@@ -2,23 +2,19 @@ const {memoryInstructions}=require('./_memory');
 const {identityInstructions,accountGreetingInstructions}=require('./_identity');
 const {locationInstructions}=require('./_location');
 const {clockInstructions}=require('./_clock');
-const { timingSafeEqual } = require('node:crypto');
 const { verifiedSession, isAdminSession, supabaseRpc } = require('./_supabase');
 const { mediaLimit, consumeMedia, logAiEvent } = require('./_plans');
 const env = name => (process.env[name] || '').trim();
 // Voice uses a paid realtime model: Plus, Pro and administrator accounts (each session counted against the plan's daily
-// voice sessions and messages) and the owner pilot code.
+// voice sessions and messages) with confirmed email.
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const fail = (status, error) => res.status(status).json({ error });
   if (!['GET', 'POST'].includes(req.method)) return fail(405, 'method_not_allowed');
-  const expected = env('NUNA_ACCESS_CODE'), supplied = String(req.headers['x-nuna-access-code'] || '').trim();
-  const a = Buffer.from(expected), b = Buffer.from(supplied);
-  const codeOk = expected.length >= 16 && a.length === b.length && timingSafeEqual(a, b);
   const bearer = (/^Bearer\s+([\w.-]{20,4096})$/i.exec(String(req.headers.authorization || '')) || [])[1] || '';
   const accountUser = bearer ? await verifiedSession(bearer) : null;
-  if (!codeOk && !accountUser) return fail(401, 'login_required');
-  const access = codeOk ? null : await mediaLimit(bearer, await isAdminSession(bearer), 'voice');
+  if (!accountUser) return fail(401, 'login_required');
+  const access = await mediaLimit(bearer, await isAdminSession(bearer), 'voice');
   if (access?.error) return fail(access.status, access.error);
   const key = env('OPENAI_API_KEY');
   if (!key) return fail(503, 'provider_key_missing');

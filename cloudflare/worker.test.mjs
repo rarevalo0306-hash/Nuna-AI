@@ -30,11 +30,12 @@ const complete=request('POST','/files','{}');complete.headers.set('X-Upload-Id',
 const recovery=account();recovery.db.prepare("INSERT INTO files VALUES (?,?,?,?,?,?,?,'pending')").run('stale',owner+'/documents/stale','stale','text/plain','documents',123,new Date().toISOString());await recovery.instance.alarm();assert.equal(recovery.instance.usage(),0);
 const broken=account();broken.env.FILES.put=async()=>{throw Error('network')};assert.equal((await broken.instance.fetch(request('POST','/files','hello'))).status,503);assert.equal(broken.instance.usage(),0);
 const savedFetch=globalThis.fetch;let forwarded=0;
-globalThis.fetch=async url=>String(url).includes('/auth/v1/user')?Response.json({id:owner}):Response.json(42);
+globalThis.fetch=async url=>String(url).includes('/auth/v1/user')?Response.json({id:owner,email_confirmed_at:"2026-10-01"}):Response.json(42);
 const gatewayEnv={SUPABASE_URL:'https://supabase.test',SUPABASE_KEY:'public',ACCOUNTS:{idFromName:id=>id,get(id){assert.equal(id,owner);return{fetch:async req=>{forwarded++;return a.instance.fetch(req)}}}}};
 assert.equal((await worker.fetch(new Request('https://worker.test/files'),gatewayEnv)).status,401);
 assert.equal((await worker.fetch(new Request('https://worker.test/files',{headers:{Origin:'https://evil.test',Authorization:'Bearer valid'}}),gatewayEnv)).status,403);
 r=await worker.fetch(new Request('https://worker.test/files',{headers:{Origin:'https://or-nuna.com',Authorization:'Bearer valid','X-Owner':other,'X-Account-Limit':'unlimited'}}),gatewayEnv);assert.equal(r.status,200);assert.equal((await r.clone().json()).limitBytes,QUOTA);assert.equal(r.headers.get('Access-Control-Allow-Origin'),'https://or-nuna.com');assert.equal(forwarded,1);
+globalThis.fetch=async()=>Response.json({id:owner});assert.equal((await worker.fetch(new Request('https://worker.test/files',{headers:{Authorization:'Bearer unconfirmed'}}),gatewayEnv)).status,401);assert.equal(forwarded,1);
 globalThis.fetch=async()=>new Response('bad',{status:401});assert.equal((await worker.fetch(new Request('https://worker.test/files',{headers:{Authorization:'Bearer invalid'}}),gatewayEnv)).status,401);globalThis.fetch=savedFetch;
 console.log('Verified: quota boundary and concurrent reservations, owner isolation, auth, origin, file size, rollback, recovery, private download.');
 

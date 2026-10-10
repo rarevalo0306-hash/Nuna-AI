@@ -1,3 +1,5 @@
+> **Acceso obligatorio:** chat, voz y API personales requieren una cuenta de Supabase con email confirmado. El código privado ya no permite usar la IA sin sesión, tampoco para administradores. En Supabase Auth debe estar activado **Confirm email**; esta configuración se verifica en el proyecto, no se cambia desde este repositorio. El Worker de almacenamiento también exige email confirmado y requiere desplegar su actualización por separado.
+
 # NUNA AI
 
 Asistente de IA sin dependencias. Incluye historial, conversaciones de ejemplo, modo claro/oscuro e interfaz español/inglés. El chat responde siempre con el proveedor elegido; no hay respuestas simuladas. Con una cuenta de NUNA, las conversaciones y proyectos se guardan en la cuenta (Supabase); sin sesión iniciada, en el navegador mediante localStorage. Las preferencias se guardan siempre en el navegador. Los ejemplos cambian de idioma; los mensajes escritos conservan su idioma original.
