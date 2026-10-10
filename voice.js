@@ -176,6 +176,16 @@ async function answerVoiceImage(call){
  if(generation!==voiceGeneration||connection!==voiceConnection)return;
  connection.send({type:'conversation.item.create',item:{type:'function_call_output',call_id:call.call_id,output:JSON.stringify(output)}});connection.send({type:'response.create'});
 }
+async function answerVoiceVideo(call){
+ if(call.name!=='create_video'||typeof call.call_id!=='string'||voiceClockCalls.has(call.call_id)||!voiceConnection?.send)return;
+ voiceClockCalls.add(call.call_id);const generation=voiceGeneration,connection=voiceConnection,owner=voiceOwner,chat=voiceChat;let output;
+ try{const args=JSON.parse(call.arguments||'{}');if(typeof args.prompt!=='string'||!args.prompt.trim()||args.prompt.length>4000)throw Error('invalid_request');
+  await window.NunaVideos.create(args.prompt,owner,chat,file=>{if(generation!==voiceGeneration||connection!==voiceConnection||chat!==voiceChat||authUser?.id!==owner)return false;voiceRecords.push({id:call.call_id+'-video',role:'assistant',text:vText('Aquí tienes tu video.','Here is your video.'),files:[file],complete:true});storeVoiceRecords();return true});
+  output={ok:true,queued:true,instructions:'Tell the user their video is being generated and will appear in this chat when ready. Do not claim it is already finished or saved. Do not start another generation.'};voiceSetStatus('Creando tu video… aparecerá en este chat.','Creating your video… it will appear in this chat.');
+ }catch(e){const safe=['login_required','session_expired','plan_required','daily_limit','media_limit','provider_key_missing','provider_auth','provider_credit','provider_model_missing','provider_limit','video_pending','image_required','invalid_request','provider_request'];const code=safe.includes(e.message)?e.message:'video_failed';output={ok:false,error:code,user_message:window.NunaVideos.errorMessage(code),instructions:'Explain this failure. Do not claim success or retry automatically.'}}
+ if(generation!==voiceGeneration||connection!==voiceConnection)return;
+ connection.send({type:'conversation.item.create',item:{type:'function_call_output',call_id:call.call_id,output:JSON.stringify(output)}});connection.send({type:'response.create'});
+}
 async function answerVoiceClock(call){
  if(call.name!=='get_current_time'||typeof call.call_id!=='string'||voiceClockCalls.has(call.call_id)||!voiceConnection?.send)return;
  voiceClockCalls.add(call.call_id);const generation=voiceGeneration,connection=voiceConnection;let clock;
@@ -185,7 +195,7 @@ async function answerVoiceClock(call){
  connection.send({type:'response.create'});
 }
 function receiveVoiceEvent(event) {
-  if(event.type==='response.done'&&event.response?.status==='completed'){for(const item of event.response.output||[]){if(item.type==='function_call'){if(item.name==='create_image')answerVoiceImage(item);else if(item.name==='read_my_documents')answerVoiceDocuments(item);else answerVoiceClock(item);}else{const record=voiceRecords.find(r=>r.id===item.id);if(record)record.complete=true}}storeVoiceRecords();}
+  if(event.type==='response.done'&&event.response?.status==='completed'){for(const item of event.response.output||[]){if(item.type==='function_call'){if(item.name==='create_image')answerVoiceImage(item);else if(item.name==='create_video')answerVoiceVideo(item);else if(item.name==='read_my_documents')answerVoiceDocuments(item);else answerVoiceClock(item);}else{const record=voiceRecords.find(r=>r.id===item.id);if(record)record.complete=true}}storeVoiceRecords();}
 
   if (event.type === 'input_audio_buffer.committed') {
     if (!voiceRecords.some(r => r.id === event.item_id)) voiceRecords.push({id:event.item_id,role:'user',text:''});
