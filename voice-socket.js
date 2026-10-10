@@ -1,4 +1,4 @@
-// Continuous Realtime transport for Safari networks where the WebRTC channel cannot open.
+// Continuous audio through the authenticated, server-bounded voice gateway.
 let realtimeAudioContext=null;
 function prepareRealtimeAudio(){
  const Context=window.AudioContext||window.webkitAudioContext;if(!Context)return;
@@ -24,12 +24,12 @@ async function connectRealtimeSocket({signal,generation}){
  signal.addEventListener('abort',close,{once:true});
  try{
   const headers=await aiAuthHeaders(),token=await authAccessToken();if(token)headers.Authorization='Bearer '+token;
+  voiceSetStatus('Permite el micrófono si el navegador lo solicita…','Allow the microphone if your browser asks…');
+  stream=await requestVoiceMicrophone(signal,generation);
   voiceSetStatus('Comprobando tu sesión…','Checking your session…');
   const response=await fetch('/api/voice',{method:'POST',headers:{...headers,'Content-Type':'application/json'},signal,body:JSON.stringify({transport:'websocket',language:lang,timeZone:deviceTimeZone(),location:locationForAI(),project:projectContextForChat(voiceChat)})});
   const credentials=await response.json();if(!response.ok)throw Object.assign(new Error('voice'),{code:credentials.error});
   if(!active())throw new DOMException('Cancelled','AbortError');
-  voiceSetStatus('Permite el micrófono si Safari lo solicita…','Allow the microphone if Safari asks…');
-  stream=await requestVoiceMicrophone(signal,generation);
   await context.audioWorklet.addModule('/voice-capture.js');
   if(!active())throw new DOMException('Cancelled','AbortError');
   source=context.createMediaStreamSource(stream);capture=new AudioWorkletNode(context,'nuna-capture');source.connect(capture);capture.connect(context.destination);
@@ -39,9 +39,10 @@ async function connectRealtimeSocket({signal,generation}){
    send({type:'input_audio_buffer.append',audio:voicePCMBase64(event.data)});
   };
   voiceSetStatus('Abriendo el canal de audio…','Opening the audio channel…');
-  socket=new WebSocket('wss://api.openai.com/v1/realtime?model='+encodeURIComponent(credentials.model),['realtime','openai-insecure-api-key.'+credentials.token]);
+  if(typeof credentials.url!=='string'||!credentials.url.startsWith('wss://')||!/^nuna-ticket\.[A-Za-z0-9_-]{43}$/.test(credentials.protocol||''))throw Object.assign(new Error('voice'),{code:'voice_gateway_unavailable'});
+  socket=new WebSocket(credentials.url,[credentials.protocol]);
   // The credential exists only in this connection setup, never persistent storage.
-  credentials.token=null;
+  credentials.protocol=null;
   await new Promise((resolve,reject)=>{
    let timer;
    const abort=()=>finish(new DOMException('Cancelled','AbortError'));

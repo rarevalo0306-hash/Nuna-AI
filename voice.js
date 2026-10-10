@@ -131,6 +131,7 @@ function renderVoice() {
 }
 function voiceSetStatus(es, en) { if (/Preparing reply|Creating your image/.test(en)) voiceThinking=true; else if (/Listening|speaking|muted|ended|failed|lost|could not/i.test(en)) voiceThinking=false; voiceMessage = vText(es, en); renderVoice(); }
 function voiceFailure(error) {
+  if(error?.code==='voice_gateway_unavailable')return ['La voz está temporalmente no disponible. Puedes continuar por texto.','Voice is temporarily unavailable. You can continue by text.'];
   const reset = typeof usageResetAt === 'function' ? usageResetAt() : '';
   const messages = {
     voice_network_timeout:['No se pudo establecer el audio. Prueba otra red Wi-Fi o los datos móviles y vuelve a conectar.','Audio could not connect. Try another Wi-Fi network or cellular data and reconnect.'],
@@ -251,63 +252,7 @@ async function gatherVoiceCandidates(pc,signal){
   });
 }
 // Provider adapter: future integrations can return the same connection interface.
-const voiceAdapters = {
-  openai: {
-    async connect({signal, generation}) {
-      const headers = await aiAuthHeaders();
-      // Always include the signed-in identity, even when a stored pilot code exists.
-      const sessionToken = await authAccessToken();
-      if(sessionToken) headers.Authorization='Bearer '+sessionToken;
-      voiceSetStatus('Comprobando tu sesión…','Checking your session…');
-      const check = await fetch('/api/voice', {headers, signal});
-      const availability = await check.json();
-      if (!check.ok) throw Object.assign(new Error('voice'), {code:availability.error});
-      if (generation !== voiceGeneration) throw new DOMException('Cancelled', 'AbortError');
-      voiceSetStatus('Permite el micrófono si Safari lo solicita…','Allow the microphone if Safari asks…');
-      const stream = await requestVoiceMicrophone(signal, generation);
-      voiceSetStatus('Conectando el audio con NUNA…','Connecting audio to NUNA…');
-      if (generation !== voiceGeneration) { stream.getTracks().forEach(t => t.stop()); throw new DOMException('Cancelled', 'AbortError'); }
-      const pc = new RTCPeerConnection();
-      const channel = pc.createDataChannel('oai-events');
-      let disconnectTimer;
-      const close = () => { clearTimeout(disconnectTimer); stream.getTracks().forEach(t => t.stop()); channel.close(); pc.close(); voiceAudio.pause(); voiceAudio.srcObject = null; voiceAudio.hidden = true; voiceListen.hidden=true; };
-      try {
-        stream.getTracks().forEach(track => pc.addTrack(track, stream));
-        pc.ontrack = event => {
-          if (generation !== voiceGeneration) return;
-          voiceAudio.srcObject = event.streams[0] || new MediaStream([event.track]);
-          voiceAudio.hidden = true;
-          voiceAudio.play().catch(() => {if(generation !== voiceGeneration)return;voiceListen.hidden=false;voiceSetStatus('Pulsa reproducir para escuchar a NUNA.', 'Press play to hear NUNA.');});
-        };
-        channel.onmessage = event => { if (generation !== voiceGeneration) return; try { receiveVoiceEvent(JSON.parse(event.data)); } catch {} };
-        channel.onopen = () => {
-          if (generation !== voiceGeneration) return;
-          // Include recent text from this chat, without changing the model selected for typed messages.
-          voiceBase.slice(-8).filter(([role,text]) => ['user','assistant'].includes(role) && text).forEach(([role,text]) => channel.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role,content:[{type:role === 'user' ? 'input_text' : 'output_text',text:String(text).slice(0,4000)}]}})));
-          voiceSetStatus('Conectado · Te escucho', 'Connected · Listening');
-        };
-        pc.onconnectionstatechange = () => {
-          if (generation !== voiceGeneration) return;
-          clearTimeout(disconnectTimer);
-          const finish = () => {if(generation !== voiceGeneration)return;stopRealVoice();voiceSetStatus('La conexión de voz terminó.', 'Voice connection ended.');};
-          if(pc.connectionState === 'disconnected') disconnectTimer=setTimeout(finish,8000);
-          else if(['failed','closed'].includes(pc.connectionState)) finish();
-        };
-        await pc.setLocalDescription(await pc.createOffer());
-        await gatherVoiceCandidates(pc,signal);
-        voiceSetStatus('Preparando la respuesta de voz…','Preparing the voice response…');
-        const response = await fetch('/api/voice',{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({sdp:pc.localDescription.sdp,language:lang,timeZone:deviceTimeZone(),location:locationForAI(),project:projectContextForChat(voiceChat)}),signal});
-        const answer = await response.json();
-        if (!response.ok) throw Object.assign(new Error('voice'),{code:answer.error});
-        if (generation !== voiceGeneration) throw new DOMException('Cancelled','AbortError');
-        voiceSetStatus('Abriendo el canal de audio…','Opening the audio channel…');
-        await pc.setRemoteDescription({type:'answer',sdp:answer.sdp});
-        await waitForVoiceChannel(channel,signal);
-        return {close, send(event){if(channel.readyState==='open')channel.send(JSON.stringify(event))}, mute(value){stream.getAudioTracks().forEach(track => {track.enabled=!value;});}, duration:answer.clientDurationSeconds || 300};
-      } catch (error) { close(); throw error; }
-    }
-  }
-};
+const voiceAdapters={openai:{connect:options=>connectRealtimeSocket(options)}};
 function stopRealVoice() {
   voiceGeneration++;
   voiceAbort?.abort(); voiceAbort = null;
@@ -320,7 +265,7 @@ function stopRealVoice() {
 }
 async function startRealVoice() {
   if (voiceStarting || voiceConnection) return;
-  if (!window.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) { voiceSetStatus('Este navegador no admite voz. Prueba Safari o Chrome actualizado.', 'This browser does not support voice. Try an updated Safari or Chrome.'); return; }
+  if (!window.WebSocket || !navigator.mediaDevices?.getUserMedia) { voiceSetStatus('Este navegador no admite voz. Prueba Safari o Chrome actualizado.', 'This browser does not support voice. Try an updated Safari or Chrome.'); return; }
   if (openAIBusy) { voiceSetStatus('Espera a que termine la respuesta del chat.', 'Wait for the chat reply to finish.'); return; }
   prepareRealtimeAudio();
   voiceStarting=true; const generation=++voiceGeneration;

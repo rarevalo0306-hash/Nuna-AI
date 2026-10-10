@@ -24,7 +24,7 @@ test('Realtime streams both ways, interrupts queued speech, and releases every r
  const env={window:{AudioContext:Context,WebSocket:Socket},WebSocket:Socket,AudioWorkletNode:class extends Node{constructor(){super();capture=this;this.port={}}},
   voiceGeneration:1,voiceSpeaking:false,voiceBase:[['user','hello']],voiceChat:{},lang:'es',voiceListen:{hidden:true},
   aiAuthHeaders:async()=>({}),authAccessToken:async()=> 'signed-session',projectContextForChat:()=>null,deviceTimeZone:()=>'America/New_York',locationForAI:()=>null,
-  fetch:async()=>({ok:true,json:async()=>({model:'gpt-realtime-2.1',token:'ek_fixture',clientDurationSeconds:300})}),
+  fetch:async()=>({ok:true,json:async()=>({url:'wss://voice.example.com/voice/123',protocol:'nuna-ticket.'+'a'.repeat(43),clientDurationSeconds:300})}),
   requestVoiceMicrophone:async()=>({getTracks:()=>[track],getAudioTracks:()=>[track]}),voiceSetStatus(){},stopRealVoice(){},receiveVoiceEvent:event=>received.push(event),
   AbortController,DOMException,setTimeout,clearTimeout,Float32Array,Uint8Array,DataView,Math,Promise,Set,btoa,atob};
  vm.createContext(env);vm.runInContext(fs.readFileSync('voice-socket.js','utf8')+'\nthis.transport={prepareRealtimeAudio,connectRealtimeSocket,voicePCMBase64};',env);

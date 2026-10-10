@@ -1,0 +1,9 @@
+{
+ "name":"nuna-voice-gateway",
+ "main":"voice-gateway.mjs",
+ "compatibility_date":"2026-10-09",
+ "workers_dev":true,
+ "vars":{"ALLOWED_ORIGIN":"https://or-nuna.com"},
+ "durable_objects":{"bindings":[{"name":"VOICE_SESSIONS","class_name":"VoiceSession"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["VoiceSession"]}]
+}

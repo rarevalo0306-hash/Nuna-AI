@@ -1,0 +1,39 @@
+# Controles de gasto de NUNA
+
+## Cambios implementados
+
+- Títulos y aprendizaje de memoria reservan una llamada del cupo diario mediante el mismo contador atómico del chat antes de contactar al proveedor. Se registran los tokens y el coste estimado cuando el proveedor los reporta. Un error sin datos de consumo queda registrado con coste desconocido y conserva el cupo. Leer o editar manualmente memoria no consume llamadas.
+- Consecuencia para los planes: el cupo diario ahora incluye chat, títulos y aprendizaje automático. Un mensaje que active los tres puede consumir tres llamadas. Estos eventos aparecen como `chat` en el registro existente; todavía no hay una categoría separada de títulos/memoria. Los costes son estimaciones, no facturas del proveedor.
+- La conexión local de Qwen pide desactivar pensamiento, limita la respuesta a 600 tokens y rechaza respuestas truncadas o que contengan etiquetas de pensamiento. El motor instalado debe respetar las opciones; falta validarlo con la PC real.
+- El respaldo de Qwen en la nube está desactivado salvo que `NUNA_LOCAL_QWEN_FALLBACK` sea `true`, `1`, `yes` u `on`, sin distinguir mayúsculas. Se reutiliza la identidad ya verificada para evitar cambios de ruta por otra consulta de sesión.
+- Cuando los documentos exceden el presupuesto del contexto local, se omiten y se exige informar al usuario. No se afirma haberlos leído. El presupuesto por caracteres es aproximado y no sustituye al tokenizador del modelo.
+- Las imágenes conservan su reserva ante respuestas defectuosas, errores de servidor o cortes de red cuyo resultado de facturación es desconocido. Se devuelve ante rechazos conocidos previos a ejecución o fallos inequívocos de conexión. Esto puede conservar un cupo aunque finalmente no haya habido cobro; es deliberado para evitar reintentos con gasto ilimitado.
+- La clave de OpenAI utilizada en memoria se normaliza quitando espacios externos.
+
+## Voz con límite impuesto por el servidor
+
+El navegador utiliza una pasarela de Cloudflare, no recibe credenciales de OpenAI. Cada ticket dura 30 segundos para iniciar una única conexión. Un Durable Object establece un máximo de 300 segundos, cierra el socket del navegador y el de OpenAI, y mantiene una alarma como respaldo. También limita eventos, volumen de audio y texto. El cliente no puede cambiar el modelo, las instrucciones ni el límite de salida.
+
+El servidor mantiene verificación de email, restricciones del plan y reserva de cupo. Si la pasarela no está configurada, devuelve `voice_gateway_unavailable` sin consumir cupo. No se conserva una vía directa a OpenAI que evada el límite. Se registran los tokens reportados al terminar; el coste de voz queda desconocido, porque el desglose y las tarifas de audio requieren conciliación con el proveedor. El registro puede fallar si Supabase no está disponible o la sesión de la cuenta vence; el límite de tiempo sigue siendo independiente de ese registro.
+
+## Activación pendiente
+
+No se ha desplegado esta pasarela ni se ha probado audio real en este entorno. No crear planes de pago ni comprar servicios para esta configuración.
+
+1. En el entorno cloud de Codex, guardar `CLOUDFLARE_API_TOKEN` de forma segura, con permisos Workers Scripts y acceso al ámbito de cuenta requerido por Workers/Durable Objects. El borrador del entorno añade `api.cloudflare.com`. Revisar, guardar y publicar ese borrador para aplicar el acceso; guardarlo no despliega nada.
+2. Revisar que la cuenta Cloudflare existente admite Durable Objects SQLite y sus límites/costes. Si requiere activar un servicio de pago, detenerse y consultarlo.
+3. Desplegar usando Wrangler 4.148.0 y `cloudflare/voice-wrangler.jsonc` en la cuenta correcta. El Worker es independiente del almacenamiento privado existente. Guardar en sus secretos `OPENAI_API_KEY` y `GATEWAY_SECRET` (aleatorio, al menos 32 caracteres); usar campos secretos, nunca GitHub ni el chat. No usar el token de Cloudflare como secreto de la pasarela.
+4. En Vercel configurar `NUNA_VOICE_GATEWAY_URL` con la dirección HTTPS del Worker y `NUNA_VOICE_GATEWAY_SECRET` con el mismo secreto de pasarela. Mantener `NUNA_VOICE_MODEL` con un modelo Realtime disponible en la cuenta. Guardar en los entornos adecuados y volver a desplegar.
+5. Probar con una cuenta confirmada y un plan que permita voz: conexión y audio reales, detención manual, cierre de ambos sockets al cumplirse 300 segundos, rechazo de ticket reutilizado, y registro de consumo. Confirmar en el proveedor que la sesión terminó. Una prueba real puede consumir crédito de API.
+
+No activar la nueva versión de voz en producción antes de configurar la pasarela; de lo contrario la voz estará temporalmente no disponible. Las correcciones se entregan en una rama independiente para revisar y coordinar la activación.
+
+## Comprobaciones
+
+Ejecutar con Node.js 22:
+
+```sh
+node --test tests/*.test.cjs tests/*.test.mjs
+```
+
+Las pruebas usan proveedores, base de datos, audio y sockets simulados. Comprueban reservas de cupo, tokens de títulos, rechazo sin sesión confirmada, rutas locales sin respaldo, imágenes con resultado desconocido, tickets de voz de un solo uso, restricciones de eventos y cierre de ambos sockets por alarma. No prueban la configuración real de Supabase, Cloudflare, OpenAI ni el motor de la PC.

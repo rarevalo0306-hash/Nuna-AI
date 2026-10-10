@@ -28,28 +28,28 @@ module.exports=async function(req,res){
     payload={contents:[{role:'user',parts}],generationConfig:{responseModalities:['TEXT','IMAGE']}};
    }
    const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(payload),signal:AbortSignal.timeout(170000)});const data=await r.json().catch(()=>({}));
-   if(!r.ok){await refund();return fail(r.status===429?429:502,r.status===429?'provider_limit':'provider_request')}
+   if(!r.ok){if([400,401,403,404,422,429].includes(r.status))await refund();return fail(r.status===429?429:502,r.status===429?'provider_limit':'provider_request')}
    const inline=data.candidates?.[0]?.content?.parts?.find(p=>p.inlineData)?.inlineData;
    const output=engine==='grok'?data.data?.[0]?.b64_json:inline?.data,type=engine==='grok'?'image/jpeg':inline?.mimeType;
-   if(typeof output!=='string'||!output.length||output.length>14000000||!['image/jpeg','image/png','image/webp'].includes(type)){await refund();return fail(502,'invalid_answer')}
+   if(typeof output!=='string'||!output.length||output.length>14000000||!['image/jpeg','image/png','image/webp'].includes(type)){return fail(502,'invalid_answer')}
    return res.status(200).json({image:output,type,edited:Boolean(image)});
   }
   if(useFal){
    const falInput=image?{prompt:body.prompt,image_url:'data:'+image.type+';base64,'+Buffer.from(await image.arrayBuffer()).toString('base64'),num_images:1,num_inference_steps:28,enable_safety_checker:true,output_format:'jpeg',sync_mode:true,resolution_mode:'auto'}:{prompt:body.prompt,image_size:'square_hd',num_images:1,num_inference_steps:4,enable_safety_checker:true,output_format:'jpeg',sync_mode:true};
    const r=await fetch('https://fal.run/'+(image?'fal-ai/flux-kontext/dev':'fal-ai/flux/schnell'),{method:'POST',headers:{Authorization:'Key '+falKey,'Content-Type':'application/json'},body:JSON.stringify(falInput),signal:AbortSignal.timeout(170000)});
    const data=await r.json().catch(()=>({}));
-   if(!r.ok){console.warn(JSON.stringify({nuna_fal_error:true,status:r.status}));await refund();return fail(r.status===429?429:502,r.status===429?'provider_limit':'provider_request')}
-   if(data.has_nsfw_concepts?.some(Boolean)){await refund();return fail(400,'image_declined')}
+   if(!r.ok){console.warn(JSON.stringify({nuna_fal_error:true,status:r.status}));if([400,401,403,404,422,429].includes(r.status))await refund();return fail(r.status===429?429:502,r.status===429?'provider_limit':'provider_request')}
+   if(data.has_nsfw_concepts?.some(Boolean)){return fail(400,'image_declined')}
    const match=/^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(data.images?.[0]?.url||'');
-   if(!match||match[1].length>4000000){console.warn(JSON.stringify({nuna_fal_error:true,reason:'invalid_answer',inline:Boolean(data.images?.[0]?.url?.startsWith('data:')),mime:data.images?.[0]?.content_type||null}));await refund();return fail(502,'invalid_answer')}
+   if(!match||match[1].length>4000000){console.warn(JSON.stringify({nuna_fal_error:true,reason:'invalid_answer',inline:Boolean(data.images?.[0]?.url?.startsWith('data:')),mime:data.images?.[0]?.content_type||null}));return fail(502,'invalid_answer')}
    return res.status(200).json({image:match[1],type:'image/jpeg',edited:Boolean(image)});
   }
   const model=env('NUNA_IMAGE_MODEL')||'gpt-image-1-mini';let request;
   if(image){const form=new FormData();for(const [k,v]of Object.entries({model,prompt:body.prompt,n:'1',size:'1024x1024',quality:'low',output_format:'jpeg'}))form.set(k,v);form.set('image[]',image,'source.'+(image.type==='image/jpeg'?'jpg':image.type.split('/')[1]));request={headers:{Authorization:'Bearer '+key},body:form};}
   else request={headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model,prompt:body.prompt,n:1,size:'1024x1024',quality:'low',output_format:'jpeg'})};
   const r=await fetch('https://api.openai.com/v1/images/'+(image?'edits':'generations'),{method:'POST',...request,signal:AbortSignal.timeout(170000)});const data=await r.json().catch(()=>({}));
-  if(!r.ok){console.warn(JSON.stringify({nuna_image_error:true,status:r.status,code:data.error?.code||null,param:data.error?.param||null,type:data.error?.type||null}));await refund();return fail(r.status===429?429:502,r.status===429?'provider_limit':data.error?.code==='moderation_blocked'?'image_declined':'provider_request')}
-  const b64=data.data?.[0]?.b64_json;if(typeof b64!=='string'||!b64.length||b64.length>4000000){await refund();return fail(502,'invalid_answer')}
+  if(!r.ok){console.warn(JSON.stringify({nuna_image_error:true,status:r.status,code:data.error?.code||null,param:data.error?.param||null,type:data.error?.type||null}));if([400,401,403,404,422,429].includes(r.status))await refund();return fail(r.status===429?429:502,r.status===429?'provider_limit':data.error?.code==='moderation_blocked'?'image_declined':'provider_request')}
+  const b64=data.data?.[0]?.b64_json;if(typeof b64!=='string'||!b64.length||b64.length>4000000){return fail(502,'invalid_answer')}
   return res.status(200).json({image:b64,type:'image/jpeg',edited:Boolean(image)});
- }catch(error){console.warn(JSON.stringify({nuna_image_error:true,name:error.name,reason:/header|ByteString|character/i.test(error.message||'')?'header_encoding':error.cause?.code||'unknown'}));if(error.name!=='TimeoutError')await refund();return fail(502,error.name==='TimeoutError'?'image_timeout':'provider_unavailable')}
+ }catch(error){console.warn(JSON.stringify({nuna_image_error:true,name:error.name,reason:/header|ByteString|character/i.test(error.message||'')?'header_encoding':error.cause?.code||'unknown'}));if(['ENOTFOUND','ECONNREFUSED','EAI_AGAIN','UND_ERR_CONNECT_TIMEOUT'].includes(error.cause?.code))await refund();return fail(502,error.name==='TimeoutError'?'image_timeout':'provider_unavailable')}
 };

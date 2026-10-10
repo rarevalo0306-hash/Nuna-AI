@@ -2,8 +2,8 @@ const {memoryInstructions}=require('./_memory');
 const {identityInstructions,accountGreetingInstructions}=require('./_identity');
 const {locationInstructions}=require('./_location');
 const {clockInstructions}=require('./_clock');
-const { verifiedSession, isAdminSession, supabaseRpc } = require('./_supabase');
-const { mediaLimit, consumeMedia, logAiEvent } = require('./_plans');
+const { verifiedSession, isAdminSession, supabaseRpc, supabaseConfig } = require('./_supabase');
+const { mediaLimit, consumeMedia } = require('./_plans');
 const env = name => (process.env[name] || '').trim();
 // Voice uses a paid realtime model: Plus, Pro and administrator accounts (each session counted against the plan's daily
 // voice sessions and messages) with confirmed email.
@@ -16,19 +16,13 @@ module.exports = async function handler(req, res) {
   if (!accountUser) return fail(401, 'login_required');
   const access = await mediaLimit(bearer, await isAdminSession(bearer), 'voice');
   if (access?.error) return fail(access.status, access.error);
-  const key = env('OPENAI_API_KEY');
-  if (!key) return fail(503, 'provider_key_missing');
-  const model = env('NUNA_VOICE_MODEL') || 'gpt-realtime-2.1';
-  if (req.method === 'GET') {
-    try {
-      const r = await fetch('https://api.openai.com/v1/models/' + encodeURIComponent(model), {headers:{Authorization:`Bearer ${key}`},signal:AbortSignal.timeout(10000)});
-      if (!r.ok) return fail(r.status === 404 ? 503 : 502, r.status === 404 ? 'provider_model_missing' : 'provider_auth');
-      return res.status(200).json({provider:'openai', ready:true, pilot:true, clientDurationSeconds:300});
-    } catch { return fail(502, 'provider_unavailable'); }
-  }
-  let body = req.body;
-  if (typeof body === 'string') { try { body = JSON.parse(body); } catch { return fail(400, 'invalid_request'); } }
-  if (body?.transport !== 'websocket' && (typeof body?.sdp !== 'string' || body.sdp.length > 60000 || !body.sdp.startsWith('v=0') || !body.sdp.includes('m=audio'))) return fail(400, 'invalid_request');
+  let gateway;
+  try {gateway=new URL(env('NUNA_VOICE_GATEWAY_URL'));if(gateway.protocol!=='https:'||gateway.username||gateway.password||gateway.search||gateway.hash)throw Error();}catch{return fail(503,'voice_gateway_unavailable')}
+  const gatewayKey=env('NUNA_VOICE_GATEWAY_SECRET');if(gatewayKey.length<32)return fail(503,'voice_gateway_unavailable');
+  const model=env('NUNA_VOICE_MODEL')||'gpt-realtime-2.1';
+  if(req.method==='GET')return res.status(200).json({ready:true,transport:'gateway-websocket',clientDurationSeconds:300});
+  let body=req.body;if(typeof body==='string'){try{body=JSON.parse(body)}catch{return fail(400,'invalid_request')}}
+  if(body?.transport!=='websocket')return fail(400,'voice_transport_required');
   const projectContext=body.project && typeof body.project.description==='string' ? JSON.stringify({name:String(body.project.name||'').slice(0,80),goal:body.project.description.slice(0,1000)}) : '';
   const language = body.language === 'en' ? 'English' : 'Spanish';
   const session = {
@@ -49,31 +43,13 @@ module.exports = async function handler(req, res) {
     if (reservation) await supabaseRpc('refund_ai_message', bearer, { p_reservation: reservation });
     return fail(status, error);
   };
-  const started = () => logAiEvent(bearer, reservation, 'voice', 'openai', model, { input: null, output: null }, null);
-  if(body.transport==='websocket'){
-    session.audio.input.format={type:'audio/pcm',rate:24000};
-    session.audio.output.format={type:'audio/pcm',rate:24000};
-    try{
-      const r=await fetch('https://api.openai.com/v1/realtime/client_secrets',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({expires_after:{anchor:'created_at',seconds:60},session}),signal:AbortSignal.timeout(15000)});
-      if(!r.ok)return failed(r.status===429?429:502,r.status===429?'provider_limit':'provider_request');
-      const data=await r.json();
-      if(typeof data.value!=='string'||!data.value.startsWith('ek_')||!Number.isFinite(data.expires_at))return failed(502,'invalid_answer');
-      await started();
-      return res.status(200).json({token:data.value,expiresAt:data.expires_at,model,clientDurationSeconds:300});
-    }catch{return failed(502,'provider_unavailable')}
-  }
-  const form = new FormData();
-  form.set('sdp',body.sdp); form.set('session',JSON.stringify(session));
-  try {
-    const r = await fetch('https://api.openai.com/v1/realtime/calls',{method:'POST',headers:{Authorization:`Bearer ${key}`},body:form,signal:AbortSignal.timeout(20000)});
-    if (!r.ok) {
-      // Log only status, never upstream bodies, audio, SDP, credentials or transcripts.
-      console.warn('nuna_voice_provider_status',r.status);
-      return failed(r.status === 429 ? 429 : 502, r.status === 429 ? 'provider_limit' : r.status === 401 ? 'provider_auth' : 'provider_request');
-    }
-    const sdp = await r.text();
-    if (!sdp.startsWith('v=0')) return failed(502,'invalid_answer');
-    await started();
-    return res.status(200).json({provider:'openai',sdp,clientDurationSeconds:300});
-  } catch { return failed(502,'provider_unavailable'); }
+  session.audio.input.format={type:'audio/pcm',rate:24000};
+  session.audio.output.format={type:'audio/pcm',rate:24000};
+  try{
+    const response=await fetch(gateway.origin+'/sessions',{method:'POST',headers:{Authorization:'Bearer '+gatewayKey,'Content-Type':'application/json'},body:JSON.stringify({session,owner:accountUser.id,reservation,bearer,supabase:supabaseConfig()}),signal:AbortSignal.timeout(10000),redirect:'error'});
+    if(!response.ok)return failed(502,'voice_gateway_unavailable');
+    const data=await response.json();const socket=new URL(data.url);
+    if(socket.protocol!=='wss:'||socket.host!==gateway.host||!/^\/voice\/[a-f0-9-]{36}$/.test(socket.pathname)||socket.search||!/^nuna-ticket\.[A-Za-z0-9_-]{43}$/.test(data.protocol||''))return failed(502,'invalid_answer');
+    return res.status(200).json({url:socket.href,protocol:data.protocol,clientDurationSeconds:300});
+  }catch{return failed(502,'voice_gateway_unavailable')}
 };
