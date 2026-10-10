@@ -36,10 +36,37 @@
  };
  const previousFiles=renderChatAttachments;
  renderChatAttachments=function(container,files){previousFiles(container,files.map(f=>f.provider==='r2'&&/^image\//.test(f.type)?{...f,preview:undefined}:f));const owner=authUser?.id;for(const file of files){if(file.provider!=='r2'||!/^image\/(jpeg|png|webp)$/.test(file.type))continue;const img=document.createElement('img');img.alt=file.name;img.style.cssText='display:block;width:100%;max-width:512px;height:auto;border-radius:14px;margin-top:12px';container.append(img);accountStorageRequest('/files/'+encodeURIComponent(file.id),{},owner).then(r=>r.blob()).then(blob=>{if(authUser?.id!==owner||!img.isConnected)return;const url=URL.createObjectURL(blob);img.src=url;const observer=new MutationObserver(()=>{if(!img.isConnected){URL.revokeObjectURL(url);observer.disconnect()}});observer.observe(document.getElementById('messages'),{childList:true,subtree:true});const download=document.createElement('button');download.type='button';download.textContent='⇩';download.setAttribute('aria-label',lang==='es'?'Descargar imagen':'Download image');download.onclick=async()=>{if(authUser?.id!==owner)return;const f=new File([blob],file.name,{type:blob.type});if((/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))&&navigator.canShare?.({files:[f]})){try{await navigator.share({files:[f]})}catch{}}else{const a=document.createElement('a');a.href=url;a.download=file.name;a.target='_blank';a.rel='noopener noreferrer';a.click()}};const edit=document.createElement('button');edit.type='button';edit.textContent='✎';edit.setAttribute('aria-label',lang==='es'?'Editar esta imagen':'Edit this image');edit.onclick=()=>{if(authUser?.id!==owner)return;pendingAttachments=[file];mode='edit';refreshAttachments();openAIStatus.textContent=lang==='es'?'Escribe qué quieres cambiar en esta imagen.':'Describe the changes to this image.';document.getElementById('prompt').focus()};container.append(download,edit)}).catch(()=>{img.alt=lang==='es'?'No se pudo cargar la foto.':'Could not load the photo.'})}};
- window.NunaImages={begin(){chooseMode(false)},cancel(){mode=null},async create(prompt,owner){
+ function imageErrorMessage(code,es=lang==='es'){
+  const messages={
+   login_required:['Inicia sesión y confirma tu email para crear imágenes.','Sign in and confirm your email to create images.'],
+   session_expired:['Tu sesión venció. Vuelve a iniciar sesión.','Your session expired. Please sign in again.'],
+   plan_required:['Tu plan no incluye imágenes. Están disponibles en Plus y Pro.','Your plan does not include images. They are available on Plus and Pro.'],
+   daily_limit:['Alcanzaste el límite diario de tu cuenta.','Your account reached its daily limit.'],
+   media_limit:['Alcanzaste el límite de imágenes de hoy.','You reached today’s image limit.'],
+   provider_key_missing:['El servicio de imágenes todavía no está configurado.','The image service is not configured yet.'],
+   provider_key_invalid:['La credencial del servicio de imágenes no tiene un formato válido.','The image service credential has an invalid format.'],
+   provider_auth:['El servicio de imágenes rechazó la credencial o sus permisos.','The image service rejected its credential or permissions.'],
+   provider_credit:['El servicio de imágenes no tiene crédito disponible.','The image service has no credit available.'],
+   provider_model_missing:['El generador de imágenes configurado no está disponible.','The configured image generator is unavailable.'],
+   provider_limit:['El servicio de imágenes alcanzó su límite de uso.','The image service reached its usage limit.'],
+   image_declined:['La descripción fue rechazada. Prueba otra descripción.','The description was declined. Try another description.'],
+   image_timeout:['La creación de la imagen tardó demasiado. No la repetiré automáticamente.','Image creation took too long. I will not retry it automatically.'],
+   invalid_answer:['El servicio no devolvió una imagen en un formato válido.','The service did not return an image in a valid format.'],
+   image_storage_failed:['La imagen se generó, pero no se pudo guardar en tu cuenta. No la generaré otra vez automáticamente.','The image was generated but could not be saved to your account. I will not generate it again automatically.'],
+   accounts_unavailable:['No se pudo comprobar el plan de tu cuenta.','Your account plan could not be checked.'],
+   accounts_paused:['La creación de imágenes está pausada.','Image creation is paused.'],
+   provider_request:['El servicio de imágenes rechazó la solicitud.','The image service rejected the request.'],
+   provider_unavailable:['No se pudo conectar con el servicio de imágenes.','Could not connect to the image service.']
+  };
+  return (messages[code]||['No se pudo completar la creación de la imagen.','Image creation could not be completed.'])[es?0:1];
+ }
+ window.NunaImages={errorMessage:imageErrorMessage,begin(){chooseMode(false)},cancel(){mode=null},async create(prompt,owner){
   if(!owner||authUser?.id!==owner)throw Error('login_required');
-  const r=await fetch('/api/images',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await authAccessToken()},body:JSON.stringify({prompt,engine:window.NunaMedia?.imageEngine||'default'}),signal:AbortSignal.timeout(180000)});const data=await r.json().catch(()=>({}));if(!r.ok)throw Error(data.error||'image_failed');if(authUser?.id!==owner)throw Error('account_changed');
-  const file=new File([Uint8Array.from(atob(data.image),c=>c.charCodeAt(0))],'NUNA-imagen.jpg',{type:data.type});const saved=await NunaArtifacts.store(file);if(authUser?.id!==owner)throw Error('account_changed');return {...saved,name:file.name,type:file.type,size:file.size};
+  let r;try{r=await fetch('/api/images',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await authAccessToken()},body:JSON.stringify({prompt,engine:window.NunaMedia?.imageEngine||'default'}),signal:AbortSignal.timeout(180000)})}catch(error){throw Error(error.name==='TimeoutError'?'image_timeout':'provider_unavailable')}
+  const data=await r.json().catch(()=>({}));if(!r.ok)throw Error(data.error||'provider_request');if(authUser?.id!==owner)throw Error('account_changed');
+  let file;try{file=new File([Uint8Array.from(atob(data.image),c=>c.charCodeAt(0))],'NUNA-imagen.'+(data.type==='image/png'?'png':data.type==='image/webp'?'webp':'jpg'),{type:data.type})}catch{throw Error('invalid_answer')}
+  let saved;try{saved=await NunaArtifacts.store(file)}catch{if(authUser?.id!==owner)throw Error('account_changed');throw Error('image_storage_failed')}
+  if(authUser?.id!==owner)throw Error('account_changed');return {...saved,name:file.name,type:file.type,size:file.size};
  }};
  render();
 })();

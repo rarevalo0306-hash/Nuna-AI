@@ -10,6 +10,15 @@ test('provider rejection refunds the reserved daily request and does not return 
 
 test('FLUX generation uses server key and inline JPEG, preserving private output flow',async()=>{const old=global.fetch,m=mock();process.env.FAL_KEY='fal-test-secret';global.fetch=async(url,options)=>url.startsWith('https://fal.run/')?(m.calls.push({url,options}),{ok:true,json:async()=>({images:[{url:'data:image/jpeg;base64,aW1hZ2U='}],has_nsfw_concepts:[false]})}):m.fetch(url,options);try{const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'A fish'}},res);assert.equal(res.code,200);assert.equal(res.body.image,'aW1hZ2U=');const call=m.calls.find(c=>c.url.includes('fal.run'));assert.equal(call.options.headers.Authorization,'Key fal-test-secret');assert.equal(JSON.parse(call.options.body).enable_safety_checker,true);assert.equal(JSON.parse(call.options.body).num_images,1);assert.ok(!JSON.stringify(res.body).includes('fal-test-secret'));}finally{delete process.env.FAL_KEY;global.fetch=old}});
 test('fal editing sends only authorized source bytes and marks result edited',async()=>{const old=global.fetch,m=mock();process.env.FAL_KEY='fal-test-secret';global.fetch=async(url,options)=>url.startsWith('https://fal.run/')?(m.calls.push({url,options}),{ok:true,json:async()=>({images:[{url:'data:image/jpeg;base64,aW1hZ2U='}],has_nsfw_concepts:[false]})}):m.fetch(url,options);try{const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'Make it orange',imageId:'private-file'}},res);assert.equal(res.code,200);assert.equal(res.body.edited,true);const call=m.calls.find(c=>c.url.includes('fal.run'));assert.ok(call.url.endsWith('/flux-kontext/dev'));assert.equal(JSON.parse(call.options.body).image_url,'data:image/png;base64,iVBORw0KGgo=');assert.ok(!m.calls.some(c=>c.url.includes('api.openai.com')));}finally{delete process.env.FAL_KEY;global.fetch=old}});
+test('inline PNG output is accepted and known credential or credit rejection is explained and refunded',async()=>{
+ const old=global.fetch;process.env.FAL_KEY='fal-test-secret';
+ try{for(const status of [200,401,402,403]){
+  const m=mock();global.fetch=async(url,options)=>url.startsWith('https://fal.run/')?{ok:status===200,status,json:async()=>status===200?{images:[{url:'data:image/png;base64,aW1hZ2U='}]}:{detail:status===403?'User is locked. Reason: Exhausted balance.':'private upstream detail'}}:m.fetch(url,options);
+  const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'A fish'}},res);
+  if(status===200){assert.equal(res.code,200);assert.equal(res.body.type,'image/png');assert.equal(res.body.image,'aW1hZ2U=')}
+  else{assert.equal(res.body.error,status===402||status===403?'provider_credit':'provider_auth');assert.ok(m.calls.some(c=>c.url.includes('refund_ai_message')));assert.ok(!JSON.stringify(res.body).includes('private upstream detail'))}
+ }}finally{delete process.env.FAL_KEY;global.fetch=old}
+});
 
 test('unknown provider outcome and successful malformed output retain the reservation',async()=>{
  const old=global.fetch;
