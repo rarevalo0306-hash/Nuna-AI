@@ -43,6 +43,7 @@
    plan_required:['Tu plan no incluye imágenes. Están disponibles en Plus y Pro.','Your plan does not include images. They are available on Plus and Pro.'],
    daily_limit:['Alcanzaste el límite diario de tu cuenta.','Your account reached its daily limit.'],
    media_limit:['Alcanzaste el límite de imágenes de hoy.','You reached today’s image limit.'],
+   provider_configuration:['El servicio de imágenes necesita un ajuste de configuración.','The image service needs a configuration adjustment.'],
    provider_key_missing:['El servicio de imágenes todavía no está configurado.','The image service is not configured yet.'],
    provider_key_invalid:['La credencial del servicio de imágenes no tiene un formato válido.','The image service credential has an invalid format.'],
    provider_auth:['El servicio de imágenes rechazó la credencial o sus permisos.','The image service rejected its credential or permissions.'],

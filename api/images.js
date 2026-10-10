@@ -16,7 +16,11 @@ module.exports=async function(req,res){
  let body=req.body;if(typeof body==='string'){try{body=JSON.parse(body)}catch{return fail(400,'invalid_request')}}
  if(typeof body?.prompt!=='string'||!body.prompt.trim()||body.prompt.length>4000)return fail(400,'invalid_request');
  if(body.imageId!==undefined&&!/^[\w-]{1,100}$/.test(body.imageId))return fail(400,'invalid_image');
- const engine=body.engine||'default';if(!['default','grok','gemini'].includes(engine))return fail(400,'invalid_engine');const falKey=env('FAL_KEY'),useFal=engine==='default'&&Boolean(falKey);const key=engine==='grok'?env('XAI_API_KEY'):engine==='gemini'?env('GEMINI_API_KEY'):useFal?falKey:env('OPENAI_API_KEY');if(!key)return fail(503,'provider_key_missing');if(useFal&&!/^[\x21-\x7E]+$/.test(falKey))return fail(503,'provider_key_invalid');
+ const requested=body.engine||'default';if(!['default','grok','gemini'].includes(requested))return fail(400,'invalid_engine');
+ const falKey=env('FAL_KEY'),configured=env('NUNA_IMAGE_ENGINE')||'auto';
+ const engine=requested==='default'?(configured==='auto'?(falKey?'fal':'openai'):configured):requested;
+ if(!['fal','openai','grok','gemini'].includes(engine))return fail(503,'provider_configuration');
+ const useFal=engine==='fal';const key=engine==='grok'?env('XAI_API_KEY'):engine==='gemini'?env('GEMINI_API_KEY'):useFal?falKey:env('OPENAI_API_KEY');if(!key)return fail(503,'provider_key_missing');if(useFal&&!/^[\x21-\x7E]+$/.test(falKey))return fail(503,'provider_key_invalid');
  let image=null;
  if(body.imageId){try{const r=await fetch('https://nuna-private-storage.nuna-security.workers.dev/files/'+encodeURIComponent(body.imageId),{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(15000)});if(!r.ok)return fail(403,'image_unavailable');const bytes=await r.arrayBuffer();if(!bytes.byteLength||bytes.byteLength>10485760)return fail(413,'image_too_large');const b=Buffer.from(bytes);const type=b[0]===255&&b[1]===216&&b[2]===255?'image/jpeg':b.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?'image/png':b.toString('ascii',0,4)==='RIFF'&&b.toString('ascii',8,12)==='WEBP'?'image/webp':null;if(!type)return fail(400,'invalid_image');image=new Blob([bytes],{type});}catch{return fail(502,'image_unavailable')}}
  const access=await mediaLimit(token,await isAdminSession(token,user),'image');if(access.error)return fail(access.status,access.error);
