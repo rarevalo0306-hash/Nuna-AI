@@ -18,7 +18,7 @@ El servidor mantiene verificación de email, restricciones del plan y reserva de
 
 ## Activación pendiente
 
-No se ha desplegado esta pasarela ni se ha probado audio real en este entorno. No crear planes de pago ni comprar servicios para esta configuración.
+La pasarela ya está desplegada, pero falta su clave de OpenAI y no se ha probado audio real. No crear planes de pago ni comprar servicios para esta configuración.
 
 1. En el entorno cloud de Codex, guardar `CLOUDFLARE_API_TOKEN` de forma segura, con permisos Workers Scripts y acceso al ámbito de cuenta requerido por Workers/Durable Objects. El borrador del entorno añade `api.cloudflare.com`. Revisar, guardar y publicar ese borrador para aplicar el acceso; guardarlo no despliega nada.
 2. Revisar que la cuenta Cloudflare existente admite Durable Objects SQLite y sus límites/costes. Si requiere activar un servicio de pago, detenerse y consultarlo.
@@ -46,3 +46,13 @@ Las pruebas usan proveedores, base de datos, audio y sockets simulados. Comprueb
 - Las 70 pruebas simuladas originales pasaron con Node 24. Con la regresión del handshake añadida, las 71 pruebas simuladas pasaron con Node 22. No son pruebas de servicios reales.
 - Wrangler 4.148.0 completó `deploy --dry-run` con `cloudflare/voice-wrangler.jsonc`, incluyendo el binding `VOICE_SESSIONS`. Esto verifica el empaquetado, no el despliegue ni la autorización de Cloudflare.
 - Siguen pendientes el despliegue real, autenticación y reutilización de tickets en Cloudflare, audio real, cierre de OpenAI a los 300 segundos y comprobación del registro de consumo. No se publicó producción ni se activaron servicios de pago; proyectos, modelos, conversaciones y almacenamiento existentes permanecen intactos.
+
+## Despliegue realizado — 2026-10-09
+
+- Se verificó el token Cloudflare activo y acceso real a la cuenta existente de NUNA. Se desplegó únicamente `nuna-voice-gateway` con Wrangler 4.148.0 y Durable Objects SQLite; no se activó una suscripción ni se modificó `nuna-private-storage`.
+- Dirección: `https://nuna-voice-gateway.nuna-security.workers.dev`. Versión desplegada: `ba5e92a7-06c5-4b52-95a6-f313468f9b48`.
+- Se generó un secreto de pasarela y se guardó directamente como secreto `GATEWAY_SECRET` en Cloudflare y variable sensible `NUNA_VOICE_GATEWAY_SECRET` en Vercel, sin escribirlo en archivos, Git o informes. `NUNA_VOICE_GATEWAY_URL` quedó guardada en Vercel. Ambas variables están configuradas para Production y Preview. No se reinició ni se publicó el frontend de producción.
+- Comprobaciones reales contra el Worker: POST `/sessions` sin autenticación devuelve 401 `unauthorized`; un origen ajeno devuelve 403 `origin_denied`. Una primera petición con User-Agent de Python recibió el bloqueo 1010 de Cloudflare; con User-Agent de navegador se obtuvieron las respuestas de aplicación esperadas.
+- Las 71 pruebas simuladas volvieron a pasar.
+- Bloqueo concreto: falta el secreto `OPENAI_API_KEY` en el nuevo Worker. La clave ya guardada en Vercel es sensible y no se intentó recuperar ni descifrar. El titular debe añadir la clave mediante el formulario seguro de Cloudflare, en Workers & Pages → nuna-voice-gateway → Settings → Variables and Secrets → Add → Secret.
+- Después de guardar esa clave siguen pendientes la prueba real autenticada, tickets, audio, cierre del proveedor a los 300 segundos y registro de consumo; solo entonces coordinar la publicación del frontend. El despliegue de infraestructura no equivale a voz real funcionando.
