@@ -16,45 +16,35 @@
       "maxDuration": 90
     }
   },
-  "rewrites": [
+  "routes": [
     {
-      "source": "/",
+      "src": "/(.*)",
       "has": [
         {
           "type": "host",
           "value": "admin.or-nuna.com"
         }
       ],
-      "destination": "/admin.html"
-    }
-  ],
-  "headers": [
+      "headers": {
+        "X-Frame-Options": "DENY",
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-store",
+        "X-Robots-Tag": "noindex, nofollow"
+      },
+      "continue": true
+    },
     {
-      "source": "/(.*)",
+      "src": "^/$",
       "has": [
         {
           "type": "host",
           "value": "admin.or-nuna.com"
         }
       ],
-      "headers": [
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "no-store"
-        },
-        {
-          "key": "X-Robots-Tag",
-          "value": "noindex, nofollow"
-        }
-      ]
+      "dest": "/admin.html"
+    },
+    {
+      "handle": "filesystem"
     }
   ]
 }
