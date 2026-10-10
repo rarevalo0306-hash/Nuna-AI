@@ -2,7 +2,7 @@
 (function(){
  let mode=null;
  const previousSend=send;
- function imageRequest(text){const t=text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();return !/\bno\s+(?:crees|generes|hagas|quiero)\b/.test(t)&&(/(?:crea|genera|dibuja|haz|create|generate|draw|make).{0,35}(?:imagen|foto|dibujo|image|picture|photo)/.test(t)||/\b(?:dibuja(?:me)?|dibuje(?:s|me)?|draw)\b/.test(t))}
+ const imageRequest=window.NunaImageIntent.imageRequest;
  function chooseMode(edit){mode=edit?'edit':'create';attachmentMenu.hidden=true;attachmentButton.setAttribute('aria-expanded','false');openAIStatus.textContent=lang==='es'?(edit?'Adjunta una foto JPG, PNG o WebP y escribe qué quieres cambiar.':'Describe la imagen que quieres crear.'):(edit?'Attach a JPG, PNG or WebP photo and describe the changes.':'Describe the image you want to create.');if(edit)chooseAttachment('photo');document.getElementById('prompt').focus()}
  const previousAttach=attachmentButton.onclick;attachmentButton.onclick=()=>{previousAttach();for(const [edit,label]of [[false,lang==='es'?'Crear imagen':'Create image'],[true,lang==='es'?'Editar foto':'Edit photo']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>chooseMode(edit);attachmentMenu.append(b)}};
  const previousNew=newChat;newChat=function(){mode=null;previousNew()};['new-chat','new-top'].forEach(id=>document.getElementById(id).onclick=newChat);
