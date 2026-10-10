@@ -101,3 +101,10 @@ Las pruebas usan proveedores, base de datos, audio y sockets simulados. Comprueb
 - La autenticación y el email confirmado, los permisos del plan, el cupo y el aislamiento del propietario siguen siendo obligatorios. Los rechazos conocidos del proveedor devuelven el cupo; ante un fallo de red ambiguo se conserva la reserva para evitar cargos ilimitados. Los errores devueltos son categorías seguras, sin detalles del proveedor ni credenciales.
 - Pasaron 88 pruebas automatizadas con Node 22. Las pruebas reales del proveedor no sustituyen la comprobación completa de micrófono → chat → almacenamiento con una sesión real del usuario, que no está disponible en este entorno.
 - Los diagnósticos fueron builds privados de Vercel que terminaron intencionadamente sin publicarse; no cambiaron el comando de compilación del proyecto ni la web activa.
+
+### Corrección posterior de solicitud y entrega de video — 2026-10-10
+
+- El detector anterior confundía «animal», «animado» y «animated» con una petición de animar una foto, por lo que podía exigir una imagen inexistente. Ahora solo las referencias explícitas a fotos/imágenes (o use_latest_image indicado por la herramienta de voz) requieren un archivo de origen.
+- Se comprueba la cabecera MP4 descargada antes de guardar. Un fallo de descarga o almacenamiento deja el trabajo recuperable, muestra un aviso en la conversación y comunica ese estado a la interfaz de voz. No se anuncia un video entregado antes de adjuntar el archivo ni se inicia otra generación para recuperar el existente.
+- La prueba de integración del cliente ejercita consulta de estado → descarga MP4 → almacenamiento privado → adjunto, y recuperación del mismo trabajo tras un error de almacenamiento. Usa respuestas simuladas, sin una cuenta ni archivos del usuario. Las 90 pruebas automatizadas pasan con Node 22.
+- Estas correcciones no establecen la causa exacta del último intento del usuario: falta su mensaje de respuesta o una comprobación desde su sesión real. Las pruebas reales de generación del proveedor permanecen documentadas arriba.
