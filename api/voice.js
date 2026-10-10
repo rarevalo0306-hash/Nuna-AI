@@ -20,7 +20,14 @@ module.exports = async function handler(req, res) {
   try {gateway=new URL(env('NUNA_VOICE_GATEWAY_URL'));if(gateway.protocol!=='https:'||gateway.username||gateway.password||gateway.search||gateway.hash)throw Error();}catch{return fail(503,'voice_gateway_unavailable')}
   const gatewayKey=env('NUNA_VOICE_GATEWAY_SECRET');if(gatewayKey.length<32)return fail(503,'voice_gateway_unavailable');
   const model=env('NUNA_VOICE_MODEL')||'gpt-realtime-2.1';
-  if(req.method==='GET')return res.status(200).json({ready:true,transport:'gateway-websocket',clientDurationSeconds:300});
+  if(req.method==='GET'){
+    try{
+      const response=await fetch(gateway.origin+'/health?model='+encodeURIComponent(model),{headers:{Authorization:'Bearer '+gatewayKey},signal:AbortSignal.timeout(10000),redirect:'error'});
+      const data=await response.json();
+      if(!response.ok||data.ready!==true)return fail(503,'voice_gateway_unavailable');
+      return res.status(200).json({ready:true,transport:'gateway-websocket',clientDurationSeconds:300});
+    }catch{return fail(503,'voice_gateway_unavailable')}
+  }
   let body=req.body;if(typeof body==='string'){try{body=JSON.parse(body)}catch{return fail(400,'invalid_request')}}
   if(body?.transport!=='websocket')return fail(400,'voice_transport_required');
   const projectContext=body.project && typeof body.project.description==='string' ? JSON.stringify({name:String(body.project.name||'').slice(0,80),goal:body.project.description.slice(0,1000)}) : '';

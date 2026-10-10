@@ -55,3 +55,13 @@ test('a valid ticket is consumed before a failed provider handshake and cannot b
   assert.equal((await session.fetch(request())).status,502);assert.equal((await session.fetch(request())).status,401);assert.equal(providerCalls,1);
  }finally{global.fetch=old}
 });
+
+test('private readiness checks provider access without generation and exposes no secrets',async()=>{
+ const old=global.fetch,env={GATEWAY_SECRET:'s'.repeat(32),OPENAI_API_KEY:'private-key'};let calls=0;
+ const request=auth=>new Request('https://voice.example/health?model=gpt-realtime-2.1',{headers:auth?{Authorization:'Bearer '+env.GATEWAY_SECRET}:{}});
+ try{for(const status of [200,401,403,404,429,500]){
+  global.fetch=async(url,options)=>{calls++;assert.ok(url.includes('/v1/models/'));assert.equal(options.redirect,'manual');assert.equal(options.headers.Authorization,'Bearer private-key');return {ok:status===200,status}};
+  const response=await worker.fetch(request(true),env),body=await response.json();assert.equal(response.status,status===200?200:503);assert.ok(!JSON.stringify(body).includes('private-key'));
+ }const previous=calls;assert.equal((await worker.fetch(request(false),env)).status,401);assert.equal(calls,previous);
+ }finally{global.fetch=old}
+});

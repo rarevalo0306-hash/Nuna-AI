@@ -56,3 +56,13 @@ Las pruebas usan proveedores, base de datos, audio y sockets simulados. Comprueb
 - Las 71 pruebas simuladas volvieron a pasar.
 - Bloqueo concreto: falta el secreto `OPENAI_API_KEY` en el nuevo Worker. La clave ya guardada en Vercel es sensible y no se intentó recuperar ni descifrar. El titular debe añadir la clave mediante el formulario seguro de Cloudflare, en Workers & Pages → nuna-voice-gateway → Settings → Variables and Secrets → Add → Secret.
 - Después de guardar esa clave siguen pendientes la prueba real autenticada, tickets, audio, cierre del proveedor a los 300 segundos y registro de consumo; solo entonces coordinar la publicación del frontend. El despliegue de infraestructura no equivale a voz real funcionando.
+
+## Validación de credenciales y disponibilidad — 2026-10-09
+
+- El titular añadió `OPENAI_API_KEY` como variable de texto en Cloudflare. Se convirtió a secreto en el mismo Worker, sin mostrar su valor ni guardarlo en archivos. Se conservó el secreto de pasarela.
+- Se añadió GET `/health`, privado y autenticado por el secreto de la pasarela, que consulta la disponibilidad del modelo en OpenAI sin generar contenido. El frontend ya no debe informar `ready` basándose únicamente en variables presentes.
+- La prueba real detectó que `redirect: error` no funciona en el runtime de Cloudflare. La pasarela usa `redirect: manual` y rechaza respuestas no satisfactorias, sin seguir redirecciones con credenciales.
+- OpenAI confirmó disponibilidad real del modelo (HTTP 200). Una prueba independiente recibió audio generado y respuesta con estado `completed`; el ticket reutilizado fue rechazado. Estas comprobaciones de infraestructura usan identidad de diagnóstico y un bearer inválido, que no puede escribir en Supabase; no crean cuentas ni reservas ficticias en la base de datos. No sustituyen una prueba de NUNA con sesión real y su registro de consumo.
+- Una prueba preliminar con límite de salida de 64 tokens quedó truncada; la siguiente con 256 tokens terminó correctamente. La configuración de la aplicación conserva su límite de 1024 tokens.
+- El secreto compartido de la pasarela se rotó durante la preparación de pruebas y se guardó coincidente en Cloudflare y Vercel. No rotarlo mientras existan sesiones activas: una actualización del Worker puede interrumpirlas.
+- Las 73 pruebas simuladas pasaron con Node 22.

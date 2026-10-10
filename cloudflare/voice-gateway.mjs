@@ -14,6 +14,17 @@ export function allowedClientEvent(event){
 export default {async fetch(request,env){
  const url=new URL(request.url),origin=request.headers.get('Origin');
  if(origin&&origin!==(env.ALLOWED_ORIGIN||'https://or-nuna.com'))return json({error:'origin_denied'},403);
+ if(request.method==='GET'&&url.pathname==='/health'){
+  if(!env.GATEWAY_SECRET||env.GATEWAY_SECRET.length<32||await sha(request.headers.get('Authorization')||'')!==await sha('Bearer '+env.GATEWAY_SECRET))return json({error:'unauthorized'},401);
+  if(!env.OPENAI_API_KEY)return json({error:'not_configured'},503);
+  const model=url.searchParams.get('model')||'gpt-realtime-2.1';
+  if(!/^[A-Za-z0-9._-]{1,100}$/.test(model))return json({error:'invalid_request'},400);
+  try{
+   const response=await fetch('https://api.openai.com/v1/models/'+encodeURIComponent(model),{headers:{Authorization:'Bearer '+env.OPENAI_API_KEY},signal:AbortSignal.timeout(8000),redirect:'manual'});
+   if(!response.ok)return json({error:response.status===401?'provider_authentication':response.status===403?'provider_access':response.status===404?'model_unavailable':response.status===429?'provider_limit':'provider_unavailable',providerStatus:response.status},503);
+   return json({ready:true});
+  }catch(error){return json({error:/header|ByteString|character|newline/i.test(error.message||'')?'provider_configuration':error.name==='TimeoutError'?'provider_timeout':'provider_network'},503)}
+ }
  if(request.method==='POST'&&url.pathname==='/sessions'){
   if(!env.GATEWAY_SECRET||env.GATEWAY_SECRET.length<32||await sha(request.headers.get('Authorization')||'')!==await sha('Bearer '+env.GATEWAY_SECRET))return json({error:'unauthorized'},401);
   if(!env.OPENAI_API_KEY)return json({error:'not_configured'},503);
@@ -45,7 +56,7 @@ export class VoiceSession{
   });
   if(!record)return json({error:'unauthorized'},401);
   try{
-   const response=await fetch('https://api.openai.com/v1/realtime?model='+encodeURIComponent(record.session.model),{headers:{Authorization:'Bearer '+this.env.OPENAI_API_KEY,Upgrade:'websocket'},signal:AbortSignal.timeout(10000)});
+   const response=await fetch('https://api.openai.com/v1/realtime?model='+encodeURIComponent(record.session.model),{headers:{Authorization:'Bearer '+this.env.OPENAI_API_KEY,Upgrade:'websocket'},redirect:'manual',signal:AbortSignal.timeout(10000)});
    if(!response.webSocket){await this.finish();return json({error:'unavailable'},502)}
    // An alarm can finish the session while the provider handshake is pending.
    // Never leave that late provider socket open or issue a browser connection.
