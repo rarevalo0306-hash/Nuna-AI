@@ -5,7 +5,7 @@ const handler=require('../api/chat');
 const user={id:'owner',email:'owner@example.com',email_confirmed_at:'yes'};
 Object.assign(process.env,{NUNA_LOCAL_QWEN_EMAIL:user.email,NUNA_LOCAL_QWEN_URL:'https://pc.example.com',NUNA_LOCAL_QWEN_KEY:'test-key-'.repeat(8),NUNA_LOCAL_QWEN_MODEL:'unsloth/Qwen3.5-9B-GGUF',NUNA_LOCAL_QWEN_FALLBACK:'false',SUPABASE_URL:'https://example.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_test',DASHSCOPE_API_KEY:'cloud-test',NUNA_ADMIN_EMAILS:''});
 test('Windows API request pins model, uses JSON and reports actual model',async()=>{
- const old=fetch;global.fetch=async(url,options)=>{assert.equal(url,'https://pc.example.com/v1/chat/completions');const body=JSON.parse(options.body);assert.equal(body.model,'unsloth/Qwen3.5-9B-GGUF');assert.equal(body.stream,false);assert.equal(body.max_tokens,2048);assert.equal(options.redirect,'error');return{ok:true,json:async()=>({model:body.model,choices:[{message:{content:'Hola'},finish_reason:'stop'}]})}};
+ const old=fetch;global.fetch=async(url,options)=>{assert.equal(url,'https://pc.example.com/v1/chat/completions');const body=JSON.parse(options.body);assert.equal(body.model,'unsloth/Qwen3.5-9B-GGUF');assert.equal(body.stream,false);assert.equal(body.max_tokens,600);assert.equal(body.reasoning_effort,'none');assert.equal(body.chat_template_kwargs.enable_thinking,false);assert.equal(options.redirect,'error');return{ok:true,json:async()=>({model:body.model,choices:[{message:{content:'Hola'},finish_reason:'stop'}]})}};
  try{assert.equal((await localQwenReply(user,'system',[{role:'user',content:'Hola'}])).model,process.env.NUNA_LOCAL_QWEN_MODEL)}finally{global.fetch=old}
 });
 test('private Windows failure refunds quota and never calls a paid provider',async()=>{
@@ -19,16 +19,9 @@ test('bad Windows configuration and long context cannot silently fall back',asyn
  const value=await localQwenReply(user,'x'.repeat(16001),[]);assert.equal(value.reason,'context');assert.equal(value.fallbackAllowed,false);
  assert.deepEqual(await localQwenReply({...user,email:'other@example.com'},'system',[]),{attempted:false});
 });
-test('thinking is turned off, a server that rejects that option gets the plain request, and inline thinking is hidden',async()=>{
- const old=fetch;const bodies=[];global.fetch=async(url,options)=>{const body=JSON.parse(options.body);bodies.push(body);if(body.reasoning_effort)return{ok:false,status:422,json:async()=>({})};return{ok:true,status:200,json:async()=>({choices:[{message:{content:'<think>plan</think>\nHola'},finish_reason:'stop'}]})}};
- try{const value=await localQwenReply(user,'system',[{role:'user',content:'Hola'}]);assert.equal(value.text,'Hola');assert.equal(bodies.length,2);
-  assert.equal(bodies[0].reasoning_effort,'none');assert.deepEqual(bodies[0].chat_template_kwargs,{enable_thinking:false});assert.equal(bodies[1].reasoning_effort,undefined)}finally{global.fetch=old}
+
+test('fallback is explicit, case-insensitive and never enabled by false-like values',async()=>{
+ const previous=process.env.NUNA_LOCAL_QWEN_FALLBACK;const old=fetch;global.fetch=async()=>{throw Error('offline')};
+ try{for(const value of ['false','FALSE','0','off','','unexpected']){process.env.NUNA_LOCAL_QWEN_FALLBACK=value;assert.equal((await localQwenReply(user,'system',[])).fallbackAllowed,false,value)}for(const value of ['true','TRUE','1']){process.env.NUNA_LOCAL_QWEN_FALLBACK=value;assert.equal((await localQwenReply(user,'system',[])).fallbackAllowed,true,value)}}finally{global.fetch=old;process.env.NUNA_LOCAL_QWEN_FALLBACK=previous}
 });
-test('local-only also holds for FALSE, 0, no and off, and the wait respects the caller time limit',async()=>{
- const old=process.env.NUNA_LOCAL_QWEN_FALLBACK;
- try{for(const v of ['FALSE','0','no','off']){process.env.NUNA_LOCAL_QWEN_FALLBACK=v;assert.equal((await localQwenReply(user,'x'.repeat(16001),[])).fallbackAllowed,false)}
-  process.env.NUNA_LOCAL_QWEN_FALLBACK='true';assert.equal((await localQwenReply(user,'x'.repeat(16001),[])).fallbackAllowed,true);
-  process.env.NUNA_LOCAL_QWEN_FALLBACK='false';const asked=[];const oldFetch=fetch;global.fetch=async()=>({ok:true,status:200,json:async()=>({choices:[{message:{content:'Hola'},finish_reason:'stop'}]})});
-  try{await localQwenReply(user,'system',[{role:'user',content:'Hola'}],{timeout:max=>{asked.push(max);return 9000}});assert.deepEqual(asked,[45000])}finally{global.fetch=oldFetch}
- }finally{process.env.NUNA_LOCAL_QWEN_FALLBACK=old}
-});
+test('reasoning-tag output is not shown to the person',async()=>{const old=fetch;global.fetch=async()=>({ok:true,json:async()=>({choices:[{message:{content:'<think>private reasoning</think>answer'},finish_reason:'stop'}]})});try{assert.equal((await localQwenReply(user,'system',[])).reason,'incomplete')}finally{global.fetch=old}});

@@ -2,21 +2,47 @@ const {test}=require('node:test');const assert=require('node:assert/strict');con
 process.env.SUPABASE_URL='https://example.supabase.co';process.env.SUPABASE_PUBLISHABLE_KEY='sb_publishable_test';process.env.OPENAI_API_KEY='test-key';process.env.NUNA_ADMIN_EMAILS='admin@example.com';
 const token='eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6Im5vcm1hbEBleGFtcGxlLmNvbSJ9.signature';
 const response=()=>({setHeader(){},status(n){this.code=n;return this},json(body){this.body=body;return this}});
+test('administrator image permissions use the confirmed server identity without a second Auth lookup',async()=>{
+ const old=global.fetch,m=mock();let authCalls=0;
+ global.fetch=async(url,options)=>{
+  if(url.endsWith('/auth/v1/user')){authCalls++;if(authCalls>1)throw Error('temporary Auth outage');return {ok:true,json:async()=>({id:'owner-id',email:'admin@example.com',email_confirmed_at:'now'})}}
+  if(url.includes('my_plan'))throw Error('Administrator must not be routed to the free plan');
+  return m.fetch(url,options);
+ };
+ try{const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'A teal fish'}},res);assert.equal(res.code,200);assert.equal(authCalls,1);const reservation=m.calls.find(c=>c.url.includes('consume_ai_media'));assert.equal(JSON.parse(reservation.options.body).p_kind_limit,1000000)}finally{global.fetch=old}
+});
 function mock(overrides={}){let calls=[];const fetch=async(url,options)=>{calls.push({url,options});if(url.endsWith('/auth/v1/user'))return{ok:true,json:async()=>({id:'normal-user',email_confirmed_at:'now'})};if(url.includes('my_plan'))return{status:200,json:async()=>[{plan:'plus',plan_name:'Plus',daily_messages:150,paid_models:true,storage_gb:null,daily_images:10,daily_videos:1,daily_voice:2}]};if(url.includes('consume_ai_media'))return{status:200,json:async()=>[{ok:true,reservation_id:'reservation'}]};if(url.includes('refund_ai_message'))return{status:200,json:async()=>true};if(url.includes('workers.dev'))return{ok:overrides.allowed!==false,headers:new Headers({'content-type':'image/png'}),arrayBuffer:async()=>new Uint8Array([137,80,78,71,13,10,26,10]).buffer};return{ok:overrides.success!==false,status:overrides.success===false?429:200,json:async()=>overrides.success===false?{error:{}}:{data:[{b64_json:'aW1hZ2U='}]}}};return{fetch,calls}}
 test('generation validates account, reserves usage and uses a single low-cost image request',async()=>{const old=global.fetch,m=mock();global.fetch=m.fetch;try{const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'A teal fish'}},res);assert.equal(res.code,200);assert.equal(res.body.edited,false);const req=m.calls.find(c=>c.url.endsWith('/generations'));assert.equal(JSON.parse(req.options.body).n,1);assert.equal(JSON.parse(req.options.body).quality,'low');assert.ok(!JSON.stringify(res.body).includes('test-key'));assert.ok(m.calls.find(c=>c.url.includes('consume_ai_media')))}finally{global.fetch=old}});
+test('server default can use the verified image service while retaining a different configured key',async()=>{
+ const old=global.fetch,m=mock();process.env.FAL_KEY='retained-fal-key';process.env.NUNA_IMAGE_ENGINE='openai';global.fetch=m.fetch;
+ try{const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'A teal fish',engine:'default'}},res);assert.equal(res.code,200);assert.ok(m.calls.some(c=>c.url.startsWith('https://api.openai.com/')));assert.ok(!m.calls.some(c=>c.url.startsWith('https://fal.run/')));assert.equal(process.env.FAL_KEY,'retained-fal-key')}
+ finally{delete process.env.FAL_KEY;delete process.env.NUNA_IMAGE_ENGINE;global.fetch=old}
+});
+test('invalid image service configuration fails before consuming quota',async()=>{
+ const old=global.fetch,m=mock();process.env.NUNA_IMAGE_ENGINE='unknown';global.fetch=m.fetch;
+ try{const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'A fish'}},res);assert.equal(res.code,503);assert.equal(res.body.error,'provider_configuration');assert.ok(!m.calls.some(c=>c.url.includes('consume_ai_media')))}
+ finally{delete process.env.NUNA_IMAGE_ENGINE;global.fetch=old}
+});
 test('edits fetch only private fixed storage with the user token and send multipart image',async()=>{const old=global.fetch,m=mock();global.fetch=m.fetch;try{const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'Make the fish orange',imageId:'private-file'}},res);assert.equal(res.code,200);assert.equal(res.body.edited,true);const storage=m.calls.find(c=>c.url.includes('workers.dev'));assert.equal(storage.options.headers.Authorization,'Bearer '+token);const edit=m.calls.find(c=>c.url.endsWith('/edits'));assert.ok(edit.options.body instanceof FormData);assert.equal(edit.options.body.get('image[]').type,'image/png')}finally{global.fetch=old}});
 test('unsigned requests, arbitrary URLs and foreign private files never call image provider',async()=>{const old=global.fetch,m=mock({allowed:false});global.fetch=m.fetch;try{const none=response();await handler({method:'POST',headers:{},body:{prompt:'fish'}},none);assert.equal(none.code,401);for(const imageId of ['https://evil.example/a','foreign-file']){const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'fish',imageId}},res);assert.ok([400,403].includes(res.code))}assert.ok(!m.calls.some(c=>c.url.includes('api.openai.com')))}finally{global.fetch=old}});
 test('provider rejection refunds the reserved daily request and does not return an image',async()=>{const old=global.fetch,m=mock({success:false});global.fetch=m.fetch;try{const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'fish'}},res);assert.equal(res.code,429);assert.ok(m.calls.some(c=>c.url.includes('refund_ai_message')));assert.equal(res.body.image,undefined)}finally{global.fetch=old}});
 
 test('FLUX generation uses server key and inline JPEG, preserving private output flow',async()=>{const old=global.fetch,m=mock();process.env.FAL_KEY='fal-test-secret';global.fetch=async(url,options)=>url.startsWith('https://fal.run/')?(m.calls.push({url,options}),{ok:true,json:async()=>({images:[{url:'data:image/jpeg;base64,aW1hZ2U='}],has_nsfw_concepts:[false]})}):m.fetch(url,options);try{const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'A fish'}},res);assert.equal(res.code,200);assert.equal(res.body.image,'aW1hZ2U=');const call=m.calls.find(c=>c.url.includes('fal.run'));assert.equal(call.options.headers.Authorization,'Key fal-test-secret');assert.equal(JSON.parse(call.options.body).enable_safety_checker,true);assert.equal(JSON.parse(call.options.body).num_images,1);assert.ok(!JSON.stringify(res.body).includes('fal-test-secret'));}finally{delete process.env.FAL_KEY;global.fetch=old}});
 test('fal editing sends only authorized source bytes and marks result edited',async()=>{const old=global.fetch,m=mock();process.env.FAL_KEY='fal-test-secret';global.fetch=async(url,options)=>url.startsWith('https://fal.run/')?(m.calls.push({url,options}),{ok:true,json:async()=>({images:[{url:'data:image/jpeg;base64,aW1hZ2U='}],has_nsfw_concepts:[false]})}):m.fetch(url,options);try{const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'Make it orange',imageId:'private-file'}},res);assert.equal(res.code,200);assert.equal(res.body.edited,true);const call=m.calls.find(c=>c.url.includes('fal.run'));assert.ok(call.url.endsWith('/flux-kontext/dev'));assert.equal(JSON.parse(call.options.body).image_url,'data:image/png;base64,iVBORw0KGgo=');assert.ok(!m.calls.some(c=>c.url.includes('api.openai.com')));}finally{delete process.env.FAL_KEY;global.fetch=old}});
-test('a reply cut after the provider received the request keeps the image counted; a request that never left is given back',async()=>{
+test('inline PNG output is accepted and known credential or credit rejection is explained and refunded',async()=>{
+ const old=global.fetch;process.env.FAL_KEY='fal-test-secret';
+ try{for(const status of [200,401,402,403]){
+  const m=mock();global.fetch=async(url,options)=>url.startsWith('https://fal.run/')?{ok:status===200,status,json:async()=>status===200?{images:[{url:'data:image/png;base64,aW1hZ2U='}]}:{detail:status===403?'User is locked. Reason: Exhausted balance.':'private upstream detail'}}:m.fetch(url,options);
+  const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'A fish'}},res);
+  if(status===200){assert.equal(res.code,200);assert.equal(res.body.type,'image/png');assert.equal(res.body.image,'aW1hZ2U=')}
+  else{assert.equal(res.body.error,status===402||status===403?'provider_credit':'provider_auth');assert.ok(m.calls.some(c=>c.url.includes('refund_ai_message')));assert.ok(!JSON.stringify(res.body).includes('private upstream detail'))}
+ }}finally{delete process.env.FAL_KEY;global.fetch=old}
+});
+
+test('unknown provider outcome and successful malformed output retain the reservation',async()=>{
  const old=global.fetch;
- try{
-  for(const [failure,refunded] of [[()=>{throw Object.assign(new TypeError('terminated'),{cause:{code:'UND_ERR_SOCKET'}})},false],[()=>{throw Object.assign(new TypeError('fetch failed'),{cause:{code:'ECONNREFUSED'}})},true],[async()=>({ok:true,status:200,json:async()=>{throw Object.assign(new TypeError('terminated'),{cause:{code:'UND_ERR_SOCKET'}})}}),false]]){
-   const m=mock();global.fetch=async(url,options)=>url.includes('api.openai.com')?failure():m.fetch(url,options);
-   const res=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'A teal fish'}},res);
-   assert.equal(res.code,502);assert.equal(m.calls.some(c=>c.url.includes('refund_ai_message')),refunded);
-  }
- }finally{global.fetch=old}
+ try{for(const mode of ['network','invalid','server-error']){const m=mock();global.fetch=async(url,options)=>{
+  if(url.includes('api.openai.com')){if(mode==='network')throw new TypeError('connection lost');return {ok:mode!=='server-error',status:mode==='server-error'?500:200,json:async()=>({})}}return m.fetch(url,options)};
+  const r=response();await handler({method:'POST',headers:{authorization:'Bearer '+token},body:{prompt:'fish'}},r);assert.equal(r.code,502);assert.ok(!m.calls.some(c=>c.url.includes('refund_ai_message')));
+ }}finally{global.fetch=old}
 });

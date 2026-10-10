@@ -131,6 +131,7 @@ function renderVoice() {
 }
 function voiceSetStatus(es, en) { if (/Preparing reply|Creating your image/.test(en)) voiceThinking=true; else if (/Listening|speaking|muted|ended|failed|lost|could not/i.test(en)) voiceThinking=false; voiceMessage = vText(es, en); renderVoice(); }
 function voiceFailure(error) {
+  if(error?.code==='voice_gateway_unavailable')return ['La voz está temporalmente no disponible. Puedes continuar por texto.','Voice is temporarily unavailable. You can continue by text.'];
   const reset = typeof usageResetAt === 'function' ? usageResetAt() : '';
   const messages = {
     voice_network_timeout:['No se pudo establecer el audio. Prueba otra red Wi-Fi o los datos móviles y vuelve a conectar.','Audio could not connect. Try another Wi-Fi network or cellular data and reconnect.'],
@@ -171,7 +172,17 @@ async function answerVoiceImage(call){
  try{const args=JSON.parse(call.arguments||'{}');if(typeof args.prompt!=='string'||!args.prompt.trim()||args.prompt.length>4000)throw Error('invalid_request');voiceSetStatus('Creando tu imagen…','Creating your image…');const file=await window.NunaImages.create(args.prompt,owner);
  if(generation!==voiceGeneration||connection!==voiceConnection||chat!==voiceChat||authUser?.id!==owner)return;
  voiceRecords.push({id:call.call_id,role:'assistant',text:vText('Aquí tienes tu imagen.','Here is your image.'),files:[file],complete:true});storeVoiceRecords();output={ok:true,saved_in_chat:true};
- }catch{output={ok:false,error:'Image could not be created. Do not claim success.'}}
+ }catch(error){const known=['login_required','session_expired','plan_required','daily_limit','media_limit','provider_configuration','provider_key_missing','provider_key_invalid','provider_auth','provider_credit','provider_model_missing','provider_limit','image_declined','image_timeout','invalid_answer','image_storage_failed','accounts_unavailable','accounts_paused','provider_request','provider_unavailable'];const code=known.includes(error.message)?error.message:'image_failed';const message=window.NunaImages?.errorMessage?.(code)||vText('No se pudo crear la imagen.','Image could not be created.');voiceSetStatus(message,message);output={ok:false,error:code,user_message:message,instructions:'Tell the user this specific failure reason in their language. Do not claim success, invent the cause, or retry generation automatically.'}}
+ if(generation!==voiceGeneration||connection!==voiceConnection)return;
+ connection.send({type:'conversation.item.create',item:{type:'function_call_output',call_id:call.call_id,output:JSON.stringify(output)}});connection.send({type:'response.create'});
+}
+async function answerVoiceVideo(call){
+ if(call.name!=='create_video'||typeof call.call_id!=='string'||voiceClockCalls.has(call.call_id)||!voiceConnection?.send)return;
+ voiceClockCalls.add(call.call_id);const generation=voiceGeneration,connection=voiceConnection,owner=voiceOwner,chat=voiceChat;let output;
+ try{const args=JSON.parse(call.arguments||'{}');if(typeof args.prompt!=='string'||!args.prompt.trim()||args.prompt.length>4000)throw Error('invalid_request');
+  await window.NunaVideos.create(args.prompt,owner,chat,file=>{if(generation!==voiceGeneration||connection!==voiceConnection||chat!==voiceChat||authUser?.id!==owner)return false;voiceRecords.push({id:call.call_id+'-video',role:'assistant',text:vText('Aquí tienes tu video.','Here is your video.'),files:[file],complete:true});storeVoiceRecords();return true});
+  output={ok:true,queued:true,instructions:'Tell the user their video is being generated and will appear in this chat when ready. Do not claim it is already finished or saved. Do not start another generation.'};voiceSetStatus('Creando tu video… aparecerá en este chat.','Creating your video… it will appear in this chat.');
+ }catch(e){const safe=['login_required','session_expired','plan_required','daily_limit','media_limit','provider_key_missing','provider_auth','provider_credit','provider_model_missing','provider_limit','video_pending','image_required','invalid_request','provider_request'];const code=safe.includes(e.message)?e.message:'video_failed';output={ok:false,error:code,user_message:window.NunaVideos.errorMessage(code),instructions:'Explain this failure. Do not claim success or retry automatically.'}}
  if(generation!==voiceGeneration||connection!==voiceConnection)return;
  connection.send({type:'conversation.item.create',item:{type:'function_call_output',call_id:call.call_id,output:JSON.stringify(output)}});connection.send({type:'response.create'});
 }
@@ -184,7 +195,7 @@ async function answerVoiceClock(call){
  connection.send({type:'response.create'});
 }
 function receiveVoiceEvent(event) {
-  if(event.type==='response.done'&&event.response?.status==='completed'){for(const item of event.response.output||[]){if(item.type==='function_call'){if(item.name==='create_image')answerVoiceImage(item);else if(item.name==='read_my_documents')answerVoiceDocuments(item);else answerVoiceClock(item);}else{const record=voiceRecords.find(r=>r.id===item.id);if(record)record.complete=true}}storeVoiceRecords();}
+  if(event.type==='response.done'&&event.response?.status==='completed'){for(const item of event.response.output||[]){if(item.type==='function_call'){if(item.name==='create_image')answerVoiceImage(item);else if(item.name==='create_video')answerVoiceVideo(item);else if(item.name==='read_my_documents')answerVoiceDocuments(item);else answerVoiceClock(item);}else{const record=voiceRecords.find(r=>r.id===item.id);if(record)record.complete=true}}storeVoiceRecords();}
 
   if (event.type === 'input_audio_buffer.committed') {
     if (!voiceRecords.some(r => r.id === event.item_id)) voiceRecords.push({id:event.item_id,role:'user',text:''});
@@ -251,63 +262,7 @@ async function gatherVoiceCandidates(pc,signal){
   });
 }
 // Provider adapter: future integrations can return the same connection interface.
-const voiceAdapters = {
-  openai: {
-    async connect({signal, generation}) {
-      const headers = await aiAuthHeaders();
-      // Always include the signed-in identity, even when a stored pilot code exists.
-      const sessionToken = await authAccessToken();
-      if(sessionToken) headers.Authorization='Bearer '+sessionToken;
-      voiceSetStatus('Comprobando tu sesión…','Checking your session…');
-      const check = await fetch('/api/voice', {headers, signal});
-      const availability = await check.json();
-      if (!check.ok) throw Object.assign(new Error('voice'), {code:availability.error});
-      if (generation !== voiceGeneration) throw new DOMException('Cancelled', 'AbortError');
-      voiceSetStatus('Permite el micrófono si Safari lo solicita…','Allow the microphone if Safari asks…');
-      const stream = await requestVoiceMicrophone(signal, generation);
-      voiceSetStatus('Conectando el audio con NUNA…','Connecting audio to NUNA…');
-      if (generation !== voiceGeneration) { stream.getTracks().forEach(t => t.stop()); throw new DOMException('Cancelled', 'AbortError'); }
-      const pc = new RTCPeerConnection();
-      const channel = pc.createDataChannel('oai-events');
-      let disconnectTimer;
-      const close = () => { clearTimeout(disconnectTimer); stream.getTracks().forEach(t => t.stop()); channel.close(); pc.close(); voiceAudio.pause(); voiceAudio.srcObject = null; voiceAudio.hidden = true; voiceListen.hidden=true; };
-      try {
-        stream.getTracks().forEach(track => pc.addTrack(track, stream));
-        pc.ontrack = event => {
-          if (generation !== voiceGeneration) return;
-          voiceAudio.srcObject = event.streams[0] || new MediaStream([event.track]);
-          voiceAudio.hidden = true;
-          voiceAudio.play().catch(() => {if(generation !== voiceGeneration)return;voiceListen.hidden=false;voiceSetStatus('Pulsa reproducir para escuchar a NUNA.', 'Press play to hear NUNA.');});
-        };
-        channel.onmessage = event => { if (generation !== voiceGeneration) return; try { receiveVoiceEvent(JSON.parse(event.data)); } catch {} };
-        channel.onopen = () => {
-          if (generation !== voiceGeneration) return;
-          // Include recent text from this chat, without changing the model selected for typed messages.
-          voiceBase.slice(-8).filter(([role,text]) => ['user','assistant'].includes(role) && text).forEach(([role,text]) => channel.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role,content:[{type:role === 'user' ? 'input_text' : 'output_text',text:String(text).slice(0,4000)}]}})));
-          voiceSetStatus('Conectado · Te escucho', 'Connected · Listening');
-        };
-        pc.onconnectionstatechange = () => {
-          if (generation !== voiceGeneration) return;
-          clearTimeout(disconnectTimer);
-          const finish = () => {if(generation !== voiceGeneration)return;stopRealVoice();voiceSetStatus('La conexión de voz terminó.', 'Voice connection ended.');};
-          if(pc.connectionState === 'disconnected') disconnectTimer=setTimeout(finish,8000);
-          else if(['failed','closed'].includes(pc.connectionState)) finish();
-        };
-        await pc.setLocalDescription(await pc.createOffer());
-        await gatherVoiceCandidates(pc,signal);
-        voiceSetStatus('Preparando la respuesta de voz…','Preparing the voice response…');
-        const response = await fetch('/api/voice',{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({sdp:pc.localDescription.sdp,language:lang,timeZone:deviceTimeZone(),location:locationForAI(),project:projectContextForChat(voiceChat)}),signal});
-        const answer = await response.json();
-        if (!response.ok) throw Object.assign(new Error('voice'),{code:answer.error});
-        if (generation !== voiceGeneration) throw new DOMException('Cancelled','AbortError');
-        voiceSetStatus('Abriendo el canal de audio…','Opening the audio channel…');
-        await pc.setRemoteDescription({type:'answer',sdp:answer.sdp});
-        await waitForVoiceChannel(channel,signal);
-        return {close, send(event){if(channel.readyState==='open')channel.send(JSON.stringify(event))}, mute(value){stream.getAudioTracks().forEach(track => {track.enabled=!value;});}, duration:answer.clientDurationSeconds || 300};
-      } catch (error) { close(); throw error; }
-    }
-  }
-};
+const voiceAdapters={openai:{connect:options=>connectRealtimeSocket(options)}};
 function stopRealVoice() {
   voiceGeneration++;
   voiceAbort?.abort(); voiceAbort = null;
@@ -320,7 +275,7 @@ function stopRealVoice() {
 }
 async function startRealVoice() {
   if (voiceStarting || voiceConnection) return;
-  if (!window.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) { voiceSetStatus('Este navegador no admite voz. Prueba Safari o Chrome actualizado.', 'This browser does not support voice. Try an updated Safari or Chrome.'); return; }
+  if (!window.WebSocket || !navigator.mediaDevices?.getUserMedia) { voiceSetStatus('Este navegador no admite voz. Prueba Safari o Chrome actualizado.', 'This browser does not support voice. Try an updated Safari or Chrome.'); return; }
   if (openAIBusy) { voiceSetStatus('Espera a que termine la respuesta del chat.', 'Wait for the chat reply to finish.'); return; }
   prepareRealtimeAudio();
   voiceStarting=true; const generation=++voiceGeneration;

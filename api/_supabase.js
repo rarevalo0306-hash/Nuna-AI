@@ -46,8 +46,11 @@ async function supabaseRpc(name, token, args = {}, timeout = 8000) {
 function adminEmails() {
   return env('NUNA_ADMIN_EMAILS').toLowerCase().split(/[\s,;]+/).filter(Boolean);
 }
-async function isAdminSession(token) {
+async function isAdminSession(token, verifiedUser = null) {
   const list = adminEmails(), config = supabaseConfig();
+  // Only pass the user returned by verifiedSession, never request-body or browser profile data.
+  // Reuse that verified identity so a redundant Auth request cannot demote an administrator.
+  if (verifiedUser) return Boolean(token && verifiedUser.id && verifiedUser.email_confirmed_at && list.includes(String(verifiedUser.email || '').trim().toLowerCase()));
   if (!token || !list.length || !config) return false;
   let claimed = '';
   try { claimed = String(JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')).email || '').toLowerCase(); } catch { return false; }

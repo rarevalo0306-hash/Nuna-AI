@@ -1,5 +1,6 @@
 const env=n=>(process.env[n]||'').trim();
 const engines={grok:{durations:[5,10,15],key:'XAI_API_KEY'},gemini:{durations:[4,6,8],key:'GEMINI_API_KEY'}};
+function rejection(status,data){const message=JSON.stringify(data);return status===401||status===403?'provider_auth':/credit|balance|billing|insufficient.quota/i.test(message)?'provider_credit':status===404||/model.*(?:not found|not exist|invalid)/i.test(message)?'provider_model_missing':status===429?'provider_limit':'provider_request';}
 async function start(engine,prompt,duration,image){
  const key=env(engines[engine].key);if(!key)throw Error('provider_key_missing');
  let url,headers,payload;
@@ -12,7 +13,7 @@ async function start(engine,prompt,duration,image){
   const instance={prompt};if(image)instance.image={bytesBase64Encoded:image.bytes.toString('base64'),mimeType:image.mime};
   payload={instances:[instance],parameters:{aspectRatio:'16:9',durationSeconds:duration,resolution:'720p',sampleCount:1}};
  }
- const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(payload),signal:AbortSignal.timeout(25000)});const d=await r.json();if(!r.ok)throw Error('provider_request');
+ const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(payload),signal:AbortSignal.timeout(25000)});const d=await r.json();if(!r.ok){const error=Error(rejection(r.status,d));error.rejected=r.status>=400&&r.status<500;throw error;}
  const id=engine==='grok'?d.request_id:d.name;
  if(typeof id!=='string'||!(engine==='grok'?/^[\w-]{1,100}$/:/^models\/[\w.-]+\/operations\/[\w-]+$/).test(id))throw Error('invalid_answer');
  return {engine,id};
