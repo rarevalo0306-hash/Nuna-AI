@@ -14,7 +14,7 @@ module.exports = async function handler(req, res) {
   const bearer = (/^Bearer\s+([\w.-]{20,4096})$/i.exec(String(req.headers.authorization || '')) || [])[1] || '';
   const accountUser = bearer ? await verifiedSession(bearer) : null;
   if (!accountUser) return fail(401, 'login_required');
-  const access = await mediaLimit(bearer, await isAdminSession(bearer), 'voice');
+  const access = await mediaLimit(bearer, await isAdminSession(bearer,accountUser), 'voice');
   if (access?.error) return fail(access.status, access.error);
   let gateway;
   try {gateway=new URL(env('NUNA_VOICE_GATEWAY_URL'));if(gateway.protocol!=='https:'||gateway.username||gateway.password||gateway.search||gateway.hash)throw Error();}catch{return fail(503,'voice_gateway_unavailable')}

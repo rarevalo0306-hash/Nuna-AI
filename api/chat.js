@@ -66,7 +66,7 @@ module.exports = async function handler(req, res) {
   if (!supabaseConfig()) return fail(503, 'accounts_not_configured');
   const confirmedUser = await verifiedSession(session);
   if (!confirmedUser) return fail(401, 'login_required');
-  const admin = await isAdminSession(session);
+  const admin = await isAdminSession(session,confirmedUser);
   const owner = admin;
   // Every other account has a plan (Gratis by default) that sets its daily limit and whether it may use paid models.
   let plan = null;

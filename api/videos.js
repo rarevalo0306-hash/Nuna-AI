@@ -25,7 +25,7 @@ module.exports=async(req,res)=>{
    const max=extending?30000000:10485760;if(Number(source.headers?.get('content-length'))>max)return fail(413,'source_too_large');
    if(source.body){const chunks=[];let size=0;for await(const chunk of source.body){size+=chunk.length;if(size>max)return fail(413,'source_too_large');chunks.push(Buffer.from(chunk))}bytes=Buffer.concat(chunks)}else bytes=Buffer.from(await source.arrayBuffer());if(!bytes.length||bytes.length>max)return fail(413,'source_too_large');
    mime=extending?(bytes.toString('ascii',4,8)==='ftyp'?'video/mp4':null):bytes[0]===255&&bytes[1]===216&&bytes[2]===255?'image/jpeg':bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?'image/png':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP'?'image/webp':null;if(!mime)return fail(400,'invalid_image');}
-   const access=await mediaLimit(token,await isAdminSession(token),'video');if(access.error)return fail(access.status,access.error);
+   const access=await mediaLimit(token,await isAdminSession(token,user),'video');if(access.error)return fail(access.status,access.error);
    const spent=await consumeMedia(token,'video',access);if(spent.error)return fail(spent.status,spent.error);const row={reservation_id:spent.reservation};
    if(engine!=='wan'){try{const job=await direct.start(engine,b.prompt,b.duration,sourceId?{bytes,mime}:null);return res.status(202).json({job:seal({...job,owner:user.id,expires:Date.now()+86400000},cipherKey)})}catch(e){if(['provider_request','provider_key_missing'].includes(e.message))await supabaseRpc('refund_ai_message',token,{p_reservation:row.reservation_id});return fail(502,e.message)}}
    // Keep a reservation on ambiguous network failure: the provider may have accepted the job.
