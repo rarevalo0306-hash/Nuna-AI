@@ -77,3 +77,10 @@ test('provider handshake timeout is cleared after the upgrade instead of abortin
   assert.equal(typeof callback,'function');assert.equal(cleared,true);assert.equal(signal.aborted,false);
  }finally{global.fetch=oldFetch;global.setTimeout=oldSet;global.clearTimeout=oldClear}
 });
+
+test('only the explicitly configured preview origin is admitted',async()=>{
+ const env={ALLOWED_PREVIEW_ORIGIN:'https://owned-preview.vercel.app'};
+ const request=origin=>new Request('https://voice.example/health',{headers:{Origin:origin}});
+ assert.equal((await worker.fetch(request(env.ALLOWED_PREVIEW_ORIGIN),env)).status,401);
+ assert.equal((await worker.fetch(request('https://other-preview.vercel.app'),env)).status,403);
+});

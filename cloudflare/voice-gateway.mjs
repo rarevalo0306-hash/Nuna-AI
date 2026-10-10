@@ -13,7 +13,7 @@ export function allowedClientEvent(event){
 }
 export default {async fetch(request,env){
  const url=new URL(request.url),origin=request.headers.get('Origin');
- if(origin&&origin!==(env.ALLOWED_ORIGIN||'https://or-nuna.com'))return json({error:'origin_denied'},403);
+ if(origin&&![env.ALLOWED_ORIGIN||'https://or-nuna.com',env.ALLOWED_PREVIEW_ORIGIN].filter(Boolean).includes(origin))return json({error:'origin_denied'},403);
  if(request.method==='GET'&&url.pathname==='/health'){
   if(!env.GATEWAY_SECRET||env.GATEWAY_SECRET.length<32||await sha(request.headers.get('Authorization')||'')!==await sha('Bearer '+env.GATEWAY_SECRET))return json({error:'unauthorized'},401);
   if(!env.OPENAI_API_KEY)return json({error:'not_configured'},503);
