@@ -37,3 +37,12 @@ node --test tests/*.test.cjs tests/*.test.mjs
 ```
 
 Las pruebas usan proveedores, base de datos, audio y sockets simulados. Comprueban reservas de cupo, tokens de títulos, rechazo sin sesión confirmada, rutas locales sin respaldo, imágenes con resultado desconocido, tickets de voz de un solo uso, restricciones de eventos y cierre de ambos sockets por alarma. No prueban la configuración real de Supabase, Cloudflare, OpenAI ni el motor de la PC.
+
+## Revisión de activación — 2026-10-09
+
+- Se confirmó acceso real a la API de Vercel (HTTP 200) y al proyecto existente `nunua-ai`, vinculado a `rarevalo0306-hash/Nuna-AI`, con producción en `main`. Se inspeccionaron únicamente metadatos de configuración, sin mostrar valores secretos. Ya existe `OPENAI_API_KEY`; faltan `NUNA_VOICE_GATEWAY_URL` y `NUNA_VOICE_GATEWAY_SECRET`.
+- Falta la credencial de administración de Cloudflare. Se guardó el requisito `CLOUDFLARE_API_TOKEN` en el borrador seguro del entorno con destino `api.cloudflare.com`; requiere guardar el token en la configuración y publicar el entorno antes de usarlo. No se ha confirmado todavía la cuenta ni la disponibilidad del plan gratuito para este Worker.
+- Se corrigió una carrera de cierre: si la alarma termina la sesión durante el handshake, la pasarela cierra el socket tardío de OpenAI y no entrega conexión al navegador.
+- Las 70 pruebas simuladas originales pasaron con Node 24. Con la regresión del handshake añadida, las 71 pruebas simuladas pasaron con Node 22. No son pruebas de servicios reales.
+- Wrangler 4.148.0 completó `deploy --dry-run` con `cloudflare/voice-wrangler.jsonc`, incluyendo el binding `VOICE_SESSIONS`. Esto verifica el empaquetado, no el despliegue ni la autorización de Cloudflare.
+- Siguen pendientes el despliegue real, autenticación y reutilización de tickets en Cloudflare, audio real, cierre de OpenAI a los 300 segundos y comprobación del registro de consumo. No se publicó producción ni se activaron servicios de pago; proyectos, modelos, conversaciones y almacenamiento existentes permanecen intactos.

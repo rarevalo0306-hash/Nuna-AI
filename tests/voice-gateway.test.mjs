@@ -2,6 +2,21 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import worker,{VoiceSession,allowedClientEvent,expired} from '../cloudflare/voice-gateway.mjs';
 const hash=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),n=>n.toString(16).padStart(2,'0')).join('');
+test('alarm during provider handshake closes the late socket and refuses reuse',async()=>{
+ const old=global.fetch;let resolveHandshake,started;
+ const connected=new Promise(resolve=>{started=resolve});let accepted=0,closed=0;
+ global.fetch=async()=>{started();return new Promise(resolve=>{resolveHandshake=resolve})};
+ try{
+  const ticket='nuna-ticket.'+'b'.repeat(43);
+  const ctx=state({used:false,expiresAt:Date.now()+30000,ticketHash:await hash(ticket),session:{model:'realtime'}});
+  const session=new VoiceSession(ctx,{OPENAI_API_KEY:'test'});
+  const request=()=>new Request('https://voice.example/voice/id',{headers:{'Sec-WebSocket-Protocol':ticket}});
+  const pending=session.fetch(request());await connected;await session.alarm();
+  resolveHandshake({webSocket:{accept(){accepted++},close(){closed++}}});
+  assert.equal((await pending).status,502);assert.equal(accepted,1);assert.equal(closed,1);
+  assert.equal(session.client,null);assert.equal((await session.fetch(request())).status,401);
+ }finally{global.fetch=old}
+});
 function state(record){let saved=record;return {storage:{get:async()=>saved,put:async(_,v)=>{saved=v},setAlarm:async()=>{},deleteAll:async()=>{saved=null}},blockConcurrencyWhile:async fn=>fn(),waitUntil(){}}}
 test('gateway refuses unsigned registration and cross-origin access',async()=>{
  const env={GATEWAY_SECRET:'s'.repeat(32)};

@@ -47,6 +47,12 @@ export class VoiceSession{
   try{
    const response=await fetch('https://api.openai.com/v1/realtime?model='+encodeURIComponent(record.session.model),{headers:{Authorization:'Bearer '+this.env.OPENAI_API_KEY,Upgrade:'websocket'},signal:AbortSignal.timeout(10000)});
    if(!response.webSocket){await this.finish();return json({error:'unavailable'},502)}
+   // An alarm can finish the session while the provider handshake is pending.
+   // Never leave that late provider socket open or issue a browser connection.
+   if(this.closed||expired(record)){
+    try{response.webSocket.accept();response.webSocket.close(1000,'Session ended')}catch{}
+    await this.finish();return json({error:'unavailable'},502);
+   }
    this.record=record;this.upstream=response.webSocket;this.upstream.accept();
    const pair=new WebSocketPair();this.client=pair[1];this.client.accept();
    this.timer=setTimeout(()=>this.ctx.waitUntil(this.finish()),Math.max(0,record.deadline-Date.now()));
