@@ -55,6 +55,7 @@ async function connectRealtimeSocket({signal,generation}){
     if(!active())return;
     let event;try{event=JSON.parse(message.data)}catch{return}
     if(event.type==='session.created'){
+     if(ready)return;
      ready=true;
      voiceBase.slice(-8).filter(([role,text])=>['user','assistant'].includes(role)&&text).forEach(([role,text])=>send({type:'conversation.item.create',item:{type:'message',role,content:[{type:role==='user'?'input_text':'output_text',text:String(text).slice(0,4000)}]}}));
      socket.onerror=()=>fail();voiceSetStatus('Conectado · Te escucho','Connected · Listening');finish();return;
@@ -88,6 +89,6 @@ async function connectRealtimeSocket({signal,generation}){
    };
    if(signal.aborted)abort();
   });
-  return{duration:credentials.clientDurationSeconds||300,close,send,start(){started=true},mute(value){muted=value;stream.getAudioTracks().forEach(track=>track.enabled=!value);send({type:'input_audio_buffer.clear'})},resume(){return context.resume()}};
+  return{duration:credentials.clientDurationSeconds||300,close,send,start(){if(started||!active()||!ready)return;started=true;send({type:'response.create'})},mute(value){muted=value;stream.getAudioTracks().forEach(track=>track.enabled=!value);send({type:'input_audio_buffer.clear'})},resume(){return context.resume()}};
  }catch(error){close();throw error}
 }
