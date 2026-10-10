@@ -18,7 +18,7 @@ El servidor mantiene verificación de email, restricciones del plan y reserva de
 
 ## Activación pendiente
 
-La pasarela ya está desplegada, pero falta su clave de OpenAI y no se ha probado audio real. No crear planes de pago ni comprar servicios para esta configuración.
+La pasarela ya está desplegada y tiene su clave de OpenAI guardada como secreto. Se recibió audio real en una prueba de infraestructura; la validación del flujo completo de NUNA con cuenta y registro de consumo sigue pendiente. No crear planes de pago ni comprar servicios para esta configuración.
 
 1. En el entorno cloud de Codex, guardar `CLOUDFLARE_API_TOKEN` de forma segura, con permisos Workers Scripts y acceso al ámbito de cuenta requerido por Workers/Durable Objects. El borrador del entorno añade `api.cloudflare.com`. Revisar, guardar y publicar ese borrador para aplicar el acceso; guardarlo no despliega nada.
 2. Revisar que la cuenta Cloudflare existente admite Durable Objects SQLite y sus límites/costes. Si requiere activar un servicio de pago, detenerse y consultarlo.
@@ -66,3 +66,9 @@ Las pruebas usan proveedores, base de datos, audio y sockets simulados. Comprueb
 - Una prueba preliminar con límite de salida de 64 tokens quedó truncada; la siguiente con 256 tokens terminó correctamente. La configuración de la aplicación conserva su límite de 1024 tokens.
 - El secreto compartido de la pasarela se rotó durante la preparación de pruebas y se guardó coincidente en Cloudflare y Vercel. No rotarlo mientras existan sesiones activas: una actualización del Worker puede interrumpirlas.
 - Las 73 pruebas simuladas pasaron con Node 22.
+
+## Regresión del temporizador de apertura — 2026-10-09
+
+- La prueba real de duración detectó que `AbortSignal.timeout(10000)` en el fetch de actualización WebSocket de Cloudflare cerraba la conexión aproximadamente a los 11 segundos, aun después del handshake.
+- Se reemplazó por un AbortController con temporizador explícito de apertura, que se limpia al resolver la conexión. El límite de 300 segundos y su alarma permanecen independientes. Se añadió una regresión automatizada que verifica la limpieza del temporizador. Las 74 pruebas pasaron con Node 22.
+- Supabase confirmó mediante su configuración pública que `mailer_autoconfirm` es falso: el registro por email requiere confirmación. La API de voz de producción rechazó una petición sin sesión con HTTP 401 `login_required`.

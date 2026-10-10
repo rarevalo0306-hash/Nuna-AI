@@ -65,3 +65,15 @@ test('private readiness checks provider access without generation and exposes no
  }const previous=calls;assert.equal((await worker.fetch(request(false),env)).status,401);assert.equal(calls,previous);
  }finally{global.fetch=old}
 });
+
+test('provider handshake timeout is cleared after the upgrade instead of aborting the live socket',async()=>{
+ const oldFetch=global.fetch,oldSet=global.setTimeout,oldClear=global.clearTimeout;let callback,cleared=false,signal;
+ global.setTimeout=(fn,ms)=>{assert.equal(ms,10000);callback=fn;return 42};global.clearTimeout=id=>{if(id===42)cleared=true};
+ global.fetch=async(_,options)=>{signal=options.signal;return {}};
+ try{
+  const ticket='nuna-ticket.'+'c'.repeat(43),ctx=state({expiresAt:Date.now()+30000,ticketHash:await hash(ticket),session:{model:'realtime'}});
+  const session=new VoiceSession(ctx,{OPENAI_API_KEY:'test'});
+  assert.equal((await session.fetch(new Request('https://voice.example/voice/id',{headers:{'Sec-WebSocket-Protocol':ticket}}))).status,502);
+  assert.equal(typeof callback,'function');assert.equal(cleared,true);assert.equal(signal.aborted,false);
+ }finally{global.fetch=oldFetch;global.setTimeout=oldSet;global.clearTimeout=oldClear}
+});

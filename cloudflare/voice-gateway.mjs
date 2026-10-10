@@ -56,7 +56,12 @@ export class VoiceSession{
   });
   if(!record)return json({error:'unauthorized'},401);
   try{
-   const response=await fetch('https://api.openai.com/v1/realtime?model='+encodeURIComponent(record.session.model),{headers:{Authorization:'Bearer '+this.env.OPENAI_API_KEY,Upgrade:'websocket'},redirect:'manual',signal:AbortSignal.timeout(10000)});
+   // AbortSignal.timeout stays armed after a WebSocket upgrade in workerd.
+   // Bound only the handshake, then clear its timer to preserve the live socket.
+   const controller=new AbortController(),handshakeTimer=setTimeout(()=>controller.abort(),10000);
+   let response;
+   try{response=await fetch('https://api.openai.com/v1/realtime?model='+encodeURIComponent(record.session.model),{headers:{Authorization:'Bearer '+this.env.OPENAI_API_KEY,Upgrade:'websocket'},redirect:'manual',signal:controller.signal});}
+   finally{clearTimeout(handshakeTimer)}
    if(!response.webSocket){await this.finish();return json({error:'unavailable'},502)}
    // An alarm can finish the session while the provider handshake is pending.
    // Never leave that late provider socket open or issue a browser connection.
